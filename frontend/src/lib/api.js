@@ -28,16 +28,29 @@ const live = {
     return r.session_id;
   },
   openStream(id, onEvent, onError) {
-    const es = new EventSource(`${BASE}/stream/${id}`);
-    es.onmessage = (m) => {
-      try {
-        onEvent(JSON.parse(m.data));
-      } catch {
-        /* ignore keep-alives */
+    let es = null;
+    let closed = false;
+    // check the session exists first: EventSource would silently retry a 404 forever
+    fetch(`${BASE}/session/${id}`).then((r) => {
+      if (closed) return;
+      if (r.status === 404) {
+        onError?.(new Error("This viva session doesn't exist. Start a new one from the home page."));
+        return;
       }
+      es = new EventSource(`${BASE}/stream/${id}`);
+      es.onmessage = (m) => {
+        try {
+          onEvent(JSON.parse(m.data));
+        } catch {
+          /* ignore keep-alives */
+        }
+      };
+      es.onerror = () => onError?.(new Error("Lost connection to the panel. Retrying…"));
+    }).catch(() => onError?.(new Error("Can't reach the Viva Panel server.")));
+    return () => {
+      closed = true;
+      es?.close();
     };
-    es.onerror = () => onError?.(new Error("Lost connection to the panel. Retrying…"));
-    return () => es.close();
   },
   async sendAnswer(id, answer) {
     await json(await fetch(`${BASE}/answer`, {
@@ -47,7 +60,13 @@ const live = {
     }));
   },
   async getReport(id) {
-    return json(await fetch(`${BASE}/report/${id}`));
+    // 202 while the scoring agent is still writing; poll until it's ready (up to ~3 minutes)
+    for (let i = 0; i < 90; i++) {
+      const res = await fetch(`${BASE}/report/${id}`);
+      if (res.status !== 202) return json(res);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    throw new Error("The report is taking longer than expected. Refresh to try again.");
   },
 };
 

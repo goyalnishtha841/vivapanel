@@ -8,11 +8,23 @@ Three examiners — **Professor** (design/theory), **Industry Engineer** (scale,
 | Folder | Owner | What |
 |---|---|---|
 | `agents/` | A — AI/agent lead | Examiner prompts, moderator, scoring agent, shared `schemas.py` |
-| `backend/` | B — backend/tools lead | FastAPI, GitHub ingestion, tools, Docker sandbox, SQLite |
+| `backend/` | B — backend/tools lead | FastAPI API, GitHub ingestion, SQLite sessions and event log ([backend/README.md](backend/README.md)); Docker sandbox still to do |
 | `frontend/` | C — frontend/voice lead | Landing, live panel, report; demo mode replays a recorded session ([frontend/README.md](frontend/README.md)) |
 | `docs/` | everyone | [`architecture.md`](docs/architecture.md) — how the agents coordinate · [`jury-qa.md`](docs/jury-qa.md) — jury prep · [`api-contract.md`](docs/api-contract.md) — endpoints, event format, tool names · [`agents-interface.md`](docs/agents-interface.md) — how the backend drives the panel |
 
-## Quick start (agents)
+## Run the whole thing
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env                                     # add GROQ_API_KEY (or ANTHROPIC_API_KEY)
+.venv/bin/uvicorn backend.app.main:app --port 8000       # API, see backend/README.md
+cd frontend && npm install && VITE_API_URL=http://127.0.0.1:8000 npm run dev   # UI on :5190
+```
+
+Without `VITE_API_URL` the UI runs in demo mode (replays a recorded session). With `VIVA_OFFLINE=1` the API runs
+scripted agents with no model calls.
+
+## Quick start (agents only)
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

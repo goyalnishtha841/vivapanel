@@ -39,8 +39,12 @@ export default function Session({ id, theme, onToggleTheme }) {
   const plan = useMemo(() => parsePlan(events), [events]);
   const last = events[events.length - 1];
   const done = events.some(isEnd);
-  const awaiting = !done && !sending && Boolean(last) && isQuestion(last);
-  const thinking = !done && !awaiting;
+  // a failed answer ("retry_answer") leaves the question open; any other system event before a question is fatal
+  const lastReal = [...events].reverse().find((e) => !(e.speaker === "system" && e.reasoning === "retry_answer"));
+  const notice = last?.speaker === "system" && !last.tool_used ? last : null;
+  const failed = Boolean(notice) && notice.reasoning !== "retry_answer" && !events.some(isQuestion);
+  const awaiting = !done && !failed && !sending && Boolean(lastReal) && isQuestion(lastReal);
+  const thinking = !done && !failed && !awaiting;
 
   const questions = timeline.filter((i) => i.type === "question");
   const current = questions[questions.length - 1];
@@ -80,7 +84,7 @@ export default function Session({ id, theme, onToggleTheme }) {
     <div className="relative isolate flex h-[100svh] flex-col">
       <Ambient />
       <TopBar theme={theme} onToggleTheme={onToggleTheme} answers={answers} awaitingIndex={awaiting ? answers.length : -1}
-        startedAt={startedAt} done={done} voiceOn={voiceOn}
+        startedAt={startedAt} done={done || failed} voiceOn={voiceOn}
         onToggleVoice={() => { setVoiceOn((v) => !v); stopSpeaking(); }}
         onToggleDrawer={() => setDrawer((v) => !v)} />
 
@@ -91,7 +95,12 @@ export default function Session({ id, theme, onToggleTheme }) {
             <Seats current={current} thinking={thinking} done={done} questions={questions} />
 
             <div className="min-h-0 flex-1 overflow-y-auto py-6" aria-live="polite">
-              {done ? (
+              {failed ? (
+                <div className="flex min-h-full flex-col items-center justify-center gap-5 py-10 text-center">
+                  <p className="max-w-md text-[19px]">{notice.message}</p>
+                  <button onClick={() => go("/")} className="rounded-full bg-brand px-7 py-3 text-[16px] font-semibold text-white">Try another repo</button>
+                </div>
+              ) : done ? (
                 <EndCard id={id} answered={answers.length} />
               ) : (
                 <div className="flex min-h-full flex-col justify-center gap-5">
@@ -101,12 +110,15 @@ export default function Session({ id, theme, onToggleTheme }) {
                   {current && !thinking && <QuestionCard key={currentIdx} q={current} />}
                   {thinking && <Deliberation started={Boolean(current)} handover={handover} tools={tools} />}
                   {!thinking && tools.length > 0 && <ToolSteps tools={tools} />}
+                  {notice && awaiting && (
+                    <p role="alert" className="rounded-2xl bg-bad/10 px-4 py-3 text-[15px] text-bad">{notice.message}</p>
+                  )}
                 </div>
               )}
               {error && <div role="alert" className="mt-4 rounded-xl border border-bad/40 bg-bad/10 px-4 py-2 text-[14px] text-bad">{error}</div>}
             </div>
 
-            {!done && <Composer enabled={awaiting} onSend={send} current={current} />}
+            {!done && !failed && <Composer enabled={awaiting} onSend={send} current={current} />}
           </div>
         </main>
 

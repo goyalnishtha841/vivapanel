@@ -74,6 +74,12 @@ export function buildTimeline(events) {
     } else if (e.speaker === "moderator") {
       items.push({ ...e, type: "moderator" });
     } else {
+      if (e.reasoning === "retry_answer") {
+        // the backend couldn't process the last answer; it isn't part of the viva, the question is still open
+        const i = items.map((x) => x.type).lastIndexOf("answer");
+        if (i >= 0) items.splice(i, 1);
+        lastStudent = null;
+      }
       items.push({ ...e, type: "system" });
     }
   }
