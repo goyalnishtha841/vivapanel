@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import Ambient from "../components/Ambient.jsx";
 import Avatar from "../components/Avatar.jsx";
 import CodeText from "../components/CodeText.jsx";
 import Logo from "../components/Logo.jsx";
@@ -7,17 +8,20 @@ import { ThemeToggle } from "../components/Nav.jsx";
 import { File, Mic, Send, Speaker, Wrench } from "../components/Icons.jsx";
 import { api, DEMO_REPO, MODE } from "../lib/api.js";
 import { EXAMINERS, ORDER, TONE, VERDICT } from "../lib/examiners.js";
-import { buildTimeline, cleanQuestion, isEnd, isQuestion, parsePlan, whyOf } from "../lib/events.js";
+import { buildTimeline, cleanQuestion, isEnd, isQuestion, parsePlan } from "../lib/events.js";
 import { go } from "../lib/route.js";
 import { canListen, canSpeak, listen, speak, stopSpeaking } from "../lib/speech.js";
 
 const MAX_QUESTIONS = 12; // agents/panel.py
+
+const DOT = { strong: "bg-good", partial: "bg-warn", weak: "bg-bad", no_answer: "bg-muted/60" };
 
 export default function Session({ id, theme, onToggleTheme }) {
   const [events, setEvents] = useState([]);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
+  const [drawer, setDrawer] = useState(() => window.innerWidth >= 1280);
   const [startedAt] = useState(() => Date.now());
 
   useEffect(() => {
@@ -33,12 +37,22 @@ export default function Session({ id, theme, onToggleTheme }) {
 
   const timeline = useMemo(() => buildTimeline(events), [events]);
   const plan = useMemo(() => parsePlan(events), [events]);
-  const questions = events.filter(isQuestion);
   const last = events[events.length - 1];
   const done = events.some(isEnd);
   const awaiting = !done && !sending && Boolean(last) && isQuestion(last);
-  const current = [...events].reverse().find(isQuestion);
-  const thinking = !done && !awaiting; // planning, judging or running a tool
+  const thinking = !done && !awaiting;
+
+  const questions = timeline.filter((i) => i.type === "question");
+  const current = questions[questions.length - 1];
+  const currentIdx = timeline.lastIndexOf(current);
+  const answers = timeline.filter((i) => i.type === "answer");
+  const lastAnswer = answers[answers.length - 1];
+  const lastAnswerIdx = timeline.lastIndexOf(lastAnswer);
+  // what happened since the student last spoke: tool calls and the moderator's handovers
+  const sinceAnswer = timeline.slice(lastAnswerIdx + 1);
+  const tools = sinceAnswer.filter((i) => i.type === "tool");
+  const handover = [...timeline].reverse().find((i) => i.type === "moderator" && timeline.indexOf(i) > currentIdx);
+  const feedback = lastAnswer?.verdict && lastAnswerIdx < currentIdx ? lastAnswer : null;
 
   // speak each new question in that examiner's voice
   const spoken = useRef(0);
@@ -54,8 +68,7 @@ export default function Session({ id, theme, onToggleTheme }) {
     stopSpeaking();
     setSending(true);
     try {
-      // the live backend echoes the answer on the stream as a "student" event (api-contract §2)
-      await api.sendAnswer(id, answer);
+      await api.sendAnswer(id, answer); // the backend echoes it on the stream as a "student" event
     } catch (e) {
       setError(e.message);
     } finally {
@@ -64,44 +77,41 @@ export default function Session({ id, theme, onToggleTheme }) {
   }
 
   return (
-    <div className="flex h-[100svh] flex-col bg-bg">
-      <TopBar theme={theme} onToggleTheme={onToggleTheme} asked={questions.length} startedAt={startedAt} done={done}
-        voiceOn={voiceOn} onToggleVoice={() => { setVoiceOn((v) => !v); stopSpeaking(); }} />
+    <div className="relative isolate flex h-[100svh] flex-col">
+      <Ambient />
+      <TopBar theme={theme} onToggleTheme={onToggleTheme} answers={answers} awaitingIndex={awaiting ? answers.length : -1}
+        startedAt={startedAt} done={done} voiceOn={voiceOn}
+        onToggleVoice={() => { setVoiceOn((v) => !v); stopSpeaking(); }}
+        onToggleDrawer={() => setDrawer((v) => !v)} />
 
-      {MODE === "demo" && (
-        <div className="border-b border-line bg-brand/10 px-4 py-2 text-center text-[13px]">
-          <span className="font-semibold text-brand">Demo replay.</span>{" "}
-          <span className="sm:hidden">Recorded panel turns; your answers aren't graded yet.</span>
-          <span className="hidden sm:inline">The panel's turns come from a real recorded session on{" "}
-            <span className="font-mono">campus-library-api</span>. Your answers appear in the transcript but aren't graded until the backend is connected.</span>
-        </div>
-      )}
+      <div className="flex min-h-0 flex-1">
+        {/* ------------------------------------------------ the stage */}
+        <main className="flex min-w-0 flex-1 flex-col">
+          <div className="mx-auto flex min-h-0 w-full max-w-[880px] flex-1 flex-col px-4 sm:px-8">
+            <Seats current={current} thinking={thinking} done={done} questions={questions} />
 
-      <div className="mx-auto grid min-h-0 w-full max-w-[1500px] flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[250px_minmax(0,1fr)_330px] lg:grid-rows-1">
-        <Examiners current={current} thinking={thinking} plan={plan} questions={questions} />
-
-        <main className="flex min-h-0 flex-col border-line lg:border-x">
-          <Transcript timeline={timeline} thinking={thinking} current={current} />
-          {error && <div role="alert" className="mx-4 mb-2 rounded-xl border border-bad/40 bg-bad/10 px-4 py-2 text-[14px] text-bad">{error}</div>}
-          {done ? (
-            <div className="border-t border-line p-4 sm:p-5">
-              <div className="mx-auto flex max-w-[760px] flex-col items-center justify-between gap-3 rounded-2xl border border-brand/40 bg-brand/10 p-5 sm:flex-row">
-                <div>
-                  <div className="text-[17px] font-semibold">That's the end of your viva.</div>
-                  <div className="text-[14px] text-muted">The scoring agent is ready to write your report.</div>
+            <div className="min-h-0 flex-1 overflow-y-auto py-6" aria-live="polite">
+              {done ? (
+                <EndCard id={id} answered={answers.length} />
+              ) : (
+                <div className="flex min-h-full flex-col justify-center gap-5">
+                  <AnimatePresence mode="wait">
+                    {feedback && !thinking && <Feedback key={`f-${lastAnswerIdx}`} a={feedback} />}
+                  </AnimatePresence>
+                  {current && !thinking && <QuestionCard key={currentIdx} q={current} />}
+                  {thinking && <Deliberation started={Boolean(current)} handover={handover} tools={tools} />}
+                  {!thinking && tools.length > 0 && <ToolSteps tools={tools} />}
                 </div>
-                <button onClick={() => go(`/report/${id}`)}
-                  className="shrink-0 rounded-full bg-brand px-6 py-3 text-[15px] font-semibold text-white transition-shadow hover:shadow-[0_0_30px_-4px_rgb(var(--brand)/0.8)]">
-                  See my report →
-                </button>
-              </div>
+              )}
+              {error && <div role="alert" className="mt-4 rounded-xl border border-bad/40 bg-bad/10 px-4 py-2 text-[14px] text-bad">{error}</div>}
             </div>
-          ) : (
-            <AnswerBox enabled={awaiting} onSend={send} current={current} />
-          )}
+
+            {!done && <Composer enabled={awaiting} onSend={send} current={current} />}
+          </div>
         </main>
 
-        <Sidebar current={current} plan={plan} timeline={timeline} />
+        {/* ------------------------------------------------ transcript drawer */}
+        <Drawer open={drawer} onClose={() => setDrawer(false)} timeline={timeline} plan={plan} />
       </div>
     </div>
   );
@@ -109,7 +119,7 @@ export default function Session({ id, theme, onToggleTheme }) {
 
 /* ------------------------------------------------------------------ top bar */
 
-function TopBar({ theme, onToggleTheme, asked, startedAt, done, voiceOn, onToggleVoice }) {
+function TopBar({ theme, onToggleTheme, answers, awaitingIndex, startedAt, done, voiceOn, onToggleVoice, onToggleDrawer }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (done) return;
@@ -117,198 +127,194 @@ function TopBar({ theme, onToggleTheme, asked, startedAt, done, voiceOn, onToggl
     return () => clearInterval(t);
   }, [done]);
   const secs = Math.max(0, Math.floor((now - startedAt) / 1000));
-  const n = Math.min(asked, MAX_QUESTIONS);
   return (
-    <header className="flex items-center justify-between gap-3 border-b border-line bg-surface/80 px-4 py-3 backdrop-blur sm:px-6">
-      <div className="flex min-w-0 items-center gap-4">
+    <header className="flex h-[68px] shrink-0 items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
         <button onClick={() => go("/")} aria-label="Back to home"><Logo /></button>
         {MODE === "demo" && (
-          <span className="hidden truncate rounded-full border border-line px-3 py-1 font-mono text-[12px] text-muted md:inline">
-            {DEMO_REPO.replace("https://github.com/", "")}
+          <span title="The panel's turns are a real recorded session on campus-library-api. Your answers appear but aren't graded until the backend is connected."
+            className="hidden rounded-full bg-brand/10 px-3 py-1 text-[13px] font-medium text-brand md:inline">
+            Demo replay · {DEMO_REPO.replace("https://github.com/", "")}
           </span>
         )}
       </div>
-      <div className="flex items-center gap-3 sm:gap-5">
-        <div className="hidden items-center gap-3 sm:flex">
-          <span className="text-[13px] text-muted">Question</span>
-          <span className="text-[15px] font-semibold tabular-nums">{n} / {MAX_QUESTIONS}</span>
-          <div className="h-1.5 w-28 rounded-full bg-raised">
-            <div className="h-1.5 rounded-full bg-brand transition-all duration-500" style={{ width: `${(n / MAX_QUESTIONS) * 100}%` }} />
-          </div>
-        </div>
-        <span className="font-mono text-[14px] tabular-nums text-muted">
+
+      {/* scorecard: one dot per question, coloured by the verdict */}
+      <div className="hidden items-center gap-1.5 sm:flex" aria-label={`${answers.length} of ${MAX_QUESTIONS} questions answered`}>
+        {Array.from({ length: MAX_QUESTIONS }, (_, i) => {
+          const a = answers[i];
+          const cls = a?.verdict ? DOT[a.verdict] : a ? "bg-ink/40" : i === awaitingIndex ? "bg-brand ring-4 ring-brand/20" : "bg-ink/10";
+          return <span key={i} title={a?.verdict ? VERDICT[a.verdict].label : undefined} className={`h-2.5 w-2.5 rounded-full transition-colors duration-500 ${cls}`} />;
+        })}
+      </div>
+
+      <div className="flex items-center gap-1">
+        <span className="mr-2 hidden font-mono text-[14px] tabular-nums text-muted sm:inline">
           {String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}
         </span>
         {canSpeak && (
           <button onClick={onToggleVoice} aria-pressed={voiceOn} title={voiceOn ? "Mute examiners" : "Hear examiners speak"}
-            className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${voiceOn ? "border-brand/60 bg-brand/15 text-brand" : "border-line text-muted hover:text-ink"}`}>
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${voiceOn ? "bg-brand/15 text-brand" : "text-muted hover:bg-ink/[0.06] hover:text-ink"}`}>
             <Speaker off={!voiceOn} />
           </button>
         )}
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        <button onClick={onToggleDrawer} className="ml-1 rounded-full px-4 py-2 text-[14px] font-medium text-ink transition-colors hover:bg-ink/[0.06]">
+          Transcript
+        </button>
       </div>
     </header>
   );
 }
 
-/* ------------------------------------------------------------------ left: examiners */
+/* ------------------------------------------------------------------ the panel, seated */
 
-function Examiners({ current, thinking, plan, questions }) {
+function Seats({ current, thinking, done, questions }) {
   return (
-    <aside className="flex gap-2 overflow-x-auto border-b border-line p-3 lg:flex-col lg:gap-3 lg:overflow-visible lg:border-b-0 lg:p-4">
-      <div className="hidden px-1 pb-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted lg:block">The panel</div>
+    <div className="grid shrink-0 grid-cols-3 gap-2 pt-4 sm:gap-4">
       {ORDER.map((s) => {
         const ex = EXAMINERS[s];
         const t = TONE[ex.tone];
-        const on = current?.speaker === s;
+        const on = !done && current?.speaker === s;
         const asked = questions.filter((q) => q.speaker === s).length;
-        const topics = plan.filter((p) => p.examiner === s).length;
-        const status = on ? (thinking ? "Listening" : "Asking") : asked ? "Waiting" : "Up later";
         return (
-          <div key={s} className={`flex min-w-[180px] flex-1 items-center gap-3 rounded-2xl border p-3 transition-all duration-300 lg:flex-none ${on ? `${t.border} ${t.soft}` : "border-transparent"}`}>
-            <Avatar speaker={s} size={44} speaking={on && !thinking} dim={!on} />
+          <motion.div key={s} animate={{ y: on ? -4 : 0, opacity: on || done || !current ? 1 : 0.5 }} transition={{ type: "spring", stiffness: 300, damping: 26 }}
+            className={`flex flex-col items-center gap-2 rounded-[22px] px-2 py-4 text-center transition-colors sm:flex-row sm:px-4 sm:text-left ${on ? `${t.soft}` : ""}`}>
+            <Avatar speaker={s} size={52} speaking={on && !thinking} />
             <div className="min-w-0">
-              <div className={`text-[15px] font-semibold ${on ? t.text : ""}`}>{ex.short}</div>
-              <div className="truncate text-[12px] text-muted">{ex.lane}</div>
-              <div className="mt-1 text-[11px] text-muted">
-                <span className={on ? t.text : ""}>{status}</span> · {asked} asked{topics ? ` · ${topics} topics` : ""}
+              <div className={`text-[15px] font-semibold sm:text-[16px] ${on ? t.text : ""}`}>{ex.short}</div>
+              <div className="hidden truncate text-[13px] text-muted sm:block">{ex.lane}</div>
+              <div className="text-[12px] text-muted">
+                {on ? (thinking ? "thinking…" : "asking") : `${asked} asked`}
               </div>
             </div>
-          </div>
+          </motion.div>
         );
       })}
-    </aside>
-  );
-}
-
-/* ------------------------------------------------------------------ middle: transcript */
-
-function Transcript({ timeline, thinking, current }) {
-  const end = useRef(null);
-  useEffect(() => {
-    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [timeline.length, thinking]);
-
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6" aria-live="polite">
-      <div className="mx-auto flex max-w-[760px] flex-col gap-4">
-        <AnimatePresence initial={false}>
-          {timeline.map((item, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
-              <Item item={item} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        {thinking && <Thinking started={timeline.some((i) => i.type === "question")} current={current} />}
-        <div ref={end} />
-      </div>
     </div>
   );
 }
 
-function Item({ item }) {
-  if (item.type === "moderator") {
-    return (
-      <div className="mx-auto max-w-[640px] rounded-2xl border border-line bg-surface/70 px-4 py-2.5 text-center text-[14px] leading-relaxed text-muted">
-        <span className="font-semibold text-ink">Moderator · </span>{item.message}
-      </div>
-    );
-  }
-  if (item.type === "tool") return <ToolRow e={item} />;
-  if (item.type === "system") {
-    return <div className="mx-auto rounded-xl border border-warn/40 bg-warn/10 px-4 py-2 text-[13px] text-warn">{item.message}</div>;
-  }
-  if (item.type === "answer") return <Answer a={item} />;
-  return <Question q={item} />;
-}
+/* ------------------------------------------------------------------ stage pieces */
 
-const BADGE_CLS = {
-  challenge: "bg-brand/15 text-brand",
-  "test-contradicted": "bg-bad/15 text-bad",
-  "test-supported": "bg-good/15 text-good",
-  "test-inconclusive": "bg-warn/15 text-warn",
-};
-
-function Question({ q }) {
-  const [open, setOpen] = useState(false);
+function QuestionCard({ q }) {
+  const [why, setWhy] = useState(false);
   const ex = EXAMINERS[q.speaker];
   const t = TONE[ex.tone];
   return (
-    <div className="flex max-w-[92%] gap-3">
-      <Avatar speaker={q.speaker} size={34} />
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-center gap-2 text-[13px]">
-          <span className={`font-semibold ${t.text}`}>{ex.short}</span>
-          {q.badges.map((b) => (
-            <span key={b.label} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${BADGE_CLS[b.kind]}`}>{b.label}</span>
-          ))}
-        </div>
-        <div className={`rounded-2xl rounded-tl-md border-l-[3px] ${t.border} bg-surface px-4 py-3 text-[16px] leading-relaxed shadow-sm`}>
-          <CodeText text={cleanQuestion(q.message)} />
-        </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-muted">
-          {q.file_ref && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-raised px-2 py-0.5 font-mono text-[11px] text-ink"><File />{q.file_ref}</span>
-          )}
-          {q.why && (
-            <button onClick={() => setOpen((v) => !v)} className="font-medium text-brand hover:underline lg:hidden">
-              {open ? "Hide why" : "Why this question?"}
-            </button>
-          )}
-        </div>
-        {open && <p className="mt-2 rounded-xl bg-raised/70 px-3 py-2 text-[13px] text-muted lg:hidden">{q.why}</p>}
+    <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className="rounded-[28px] border border-line bg-surface/85 p-6 shadow-[0_40px_100px_-50px_rgba(0,0,0,0.6)] backdrop-blur sm:p-8">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`text-[15px] font-semibold ${t.text}`}>{ex.name}</span>
+        {q.badges.map((b) => (
+          <span key={b.label} className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium ${b.kind === "challenge" ? "bg-brand/10 text-brand" : b.kind === "test-contradicted" ? "bg-bad/15 text-bad" : b.kind === "test-supported" ? "bg-good/15 text-good" : "bg-warn/15 text-warn"}`}>
+            {b.label}
+          </span>
+        ))}
       </div>
-    </div>
+      <p className="mt-3 text-[22px] font-medium leading-snug tracking-[-0.01em] sm:text-[27px]">
+        <CodeText text={cleanQuestion(q.message)} />
+      </p>
+      <div className="mt-5 flex flex-wrap items-center gap-4 text-[14px]">
+        {q.file_ref && (
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-raised px-2.5 py-1 font-mono text-[13px]"><File />{q.file_ref}</span>
+        )}
+        {q.why && (
+          <button onClick={() => setWhy((v) => !v)} aria-expanded={why} className="font-medium text-muted transition-colors hover:text-ink">
+            {why ? "Hide reasoning" : "Why this question?"}
+          </button>
+        )}
+      </div>
+      <AnimatePresence initial={false}>
+        {why && (
+          <motion.p initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden text-[15px] leading-relaxed text-muted">
+            <span className="block pt-3">{q.why}</span>
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.section>
   );
 }
 
-function Answer({ a }) {
-  const v = a.verdict && VERDICT[a.verdict];
+function Feedback({ a }) {
+  const v = VERDICT[a.verdict];
   return (
-    <div className="ml-auto flex max-w-[85%] flex-col items-end">
-      <div className="rounded-2xl rounded-br-md bg-brand/15 px-4 py-3 text-[16px] leading-relaxed">
-        {a.message || <span className="italic text-muted">(no answer)</span>}
-      </div>
-      {v && (
-        <div className="mt-1.5 flex max-w-full flex-col items-end gap-1">
-          <span className={`rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${v.cls}`}>{v.label}</span>
-          {a.judgement && <p className="text-right text-[12px] leading-snug text-muted">{a.judgement}</p>}
-        </div>
-      )}
-    </div>
+    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+      className="flex items-start gap-3 px-2">
+      <span className={`mt-0.5 shrink-0 rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${v.cls}`}>{v.label}</span>
+      <p className="text-[15px] leading-relaxed text-muted">
+        <span className="text-ink">Your last answer. </span>{a.judgement || "Judged against your code."}
+      </p>
+    </motion.div>
   );
 }
 
-function ToolRow({ e }) {
-  const isResult = e.speaker === "system";
+function Deliberation({ started, handover, tools }) {
   return (
-    <div className={`flex items-start gap-2 rounded-xl border border-dashed px-3 py-2 font-mono text-[12px] ${isResult ? "ml-11 border-line bg-raised/50" : "border-eng/40 bg-eng/5 text-eng"}`}>
-      <Wrench className="mt-0.5 shrink-0" />
-      <div className="min-w-0">
-        <div>{isResult ? e.message : `${EXAMINERS[e.speaker]?.short || "Panel"}: ${e.message}`}</div>
-        {e.reasoning && <div className="mt-0.5 truncate font-sans text-[12px] text-muted">{e.reasoning}</div>}
-      </div>
-    </div>
-  );
-}
-
-function Thinking({ started }) {
-  return (
-    <div className="flex items-center gap-3 text-[14px] text-muted">
-      <span className="flex gap-1">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-5 py-10 text-center">
+      <span className="flex gap-1.5">
         {[0, 1, 2].map((i) => (
-          <motion.span key={i} className="h-2 w-2 rounded-full bg-brand" animate={{ opacity: [0.25, 1, 0.25] }}
+          <motion.span key={i} className="h-2.5 w-2.5 rounded-full bg-brand" animate={{ opacity: [0.25, 1, 0.25] }}
             transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18 }} />
         ))}
       </span>
-      {started ? "The panel is weighing your answer…" : "The moderator is reading your project…"}
+      <p className="text-[18px] text-muted">
+        {handover ? handover.message : started ? "The panel is weighing your answer…" : "The moderator is reading your project…"}
+      </p>
+      {tools.length > 0 && <ToolSteps tools={tools} live />}
+    </motion.div>
+  );
+}
+
+/** The Engineer's code checks, as steps: what it ran, and what came back. */
+function ToolSteps({ tools, live = false }) {
+  const steps = [];
+  for (const t of tools) {
+    if (t.speaker !== "system") steps.push({ ask: t, result: null });
+    else if (steps.length && !steps[steps.length - 1].result) steps[steps.length - 1].result = t;
+    else steps.push({ ask: null, result: t });
+  }
+  return (
+    <div className={`w-full rounded-[22px] border border-eng/25 bg-eng/[0.06] p-5 text-left ${live ? "max-w-[560px]" : ""}`}>
+      <div className="text-[14px] font-semibold text-eng">What the Engineer checked</div>
+      <ol className="mt-3 space-y-3">
+        {steps.map((s, i) => (
+          <li key={i} className="flex gap-3 text-[14px] leading-relaxed">
+            <Wrench className="mt-1 shrink-0 text-eng" />
+            <div className="min-w-0">
+              {s.ask && <div>{s.ask.message}</div>}
+              {s.result ? (
+                <div className="font-mono text-[13px] text-muted">{s.result.message}</div>
+              ) : (
+                <div className="text-[13px] text-muted">running…</div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ answer box */
+function EndCard({ id, answered }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex min-h-full flex-col items-center justify-center gap-5 py-10 text-center">
+      <h2 className="text-[34px] font-bold tracking-[-0.02em] sm:text-[44px]">
+        That's the end of your <span className="font-serif font-normal italic text-brand">viva.</span>
+      </h2>
+      <p className="max-w-md text-[17px] text-muted">You answered {answered} questions. The scoring agent has your transcript and the test results.</p>
+      <button onClick={() => go(`/report/${id}`)}
+        className="rounded-full bg-brand px-8 py-4 text-[17px] font-semibold text-white transition-shadow hover:shadow-[0_0_32px_-4px_rgb(var(--brand)/0.7)]">
+        See my report →
+      </button>
+    </motion.div>
+  );
+}
 
-function AnswerBox({ enabled, onSend, current }) {
+/* ------------------------------------------------------------------ composer */
+
+function Composer({ enabled, onSend, current }) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const stopRef = useRef(null);
@@ -335,102 +341,133 @@ function AnswerBox({ enabled, onSend, current }) {
   }
 
   return (
-    <div className="border-t border-line bg-surface/60 p-3 backdrop-blur sm:p-4">
-      <div className="mx-auto max-w-[760px]">
-        <div className={`flex items-end gap-2 rounded-2xl border bg-bg p-2 transition-colors ${enabled ? "border-brand/50" : "border-line opacity-70"}`}>
-          <textarea
-            ref={ref}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            rows={2}
-            disabled={!enabled}
-            placeholder={enabled ? "Type your answer… (Enter to send, Shift+Enter for a new line)" : "Wait for the panel…"}
-            aria-label="Your answer"
-            className="max-h-40 min-h-[52px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[16px] leading-relaxed placeholder:text-muted/70 focus:outline-none"
-          />
-          {canListen && (
-            <button onClick={toggleMic} disabled={!enabled} aria-pressed={listening} title={listening ? "Stop dictation" : "Answer by voice"}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-40 ${listening ? "animate-pulse border-bad/60 bg-bad/15 text-bad" : "border-line text-muted hover:text-ink"}`}>
-              <Mic />
-            </button>
-          )}
-          <button onClick={() => submit()} disabled={!enabled || !text.trim()} aria-label="Send answer"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-white transition-opacity disabled:opacity-40">
-            <Send />
+    <div className="shrink-0 pb-5 pt-2">
+      <div className={`flex items-end gap-2 rounded-[24px] border bg-surface/90 p-2.5 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.5)] backdrop-blur transition-colors ${enabled ? "border-ink/20" : "border-line opacity-60"}`}>
+        {canListen && (
+          <button onClick={toggleMic} disabled={!enabled} aria-pressed={listening} title={listening ? "Stop dictation" : "Answer by voice"}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40 ${listening ? "animate-pulse bg-bad text-white" : "bg-raised text-ink hover:bg-ink/10"}`}>
+            <Mic />
           </button>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-muted">
-          <button onClick={() => submit("Can you repeat the question?")} disabled={!enabled}
-            className="rounded-full border border-line px-3 py-1 transition-colors hover:border-brand/50 hover:text-ink disabled:opacity-40">
-            Ask to repeat
-          </button>
-          <span>Be specific: name the function, say why, say what breaks.</span>
-        </div>
+        )}
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          rows={1}
+          disabled={!enabled}
+          placeholder={enabled ? (listening ? "Listening…" : "Your answer") : "Wait for the panel…"}
+          aria-label="Your answer"
+          className="max-h-40 min-h-[48px] flex-1 resize-none bg-transparent px-2 py-3 text-[17px] leading-relaxed placeholder:text-muted focus:outline-none"
+        />
+        <button onClick={() => submit("Can you repeat the question?")} disabled={!enabled}
+          className="hidden h-12 shrink-0 rounded-full px-4 text-[14px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:block">
+          Repeat?
+        </button>
+        <button onClick={() => submit()} disabled={!enabled || !text.trim()} aria-label="Send answer"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white transition-opacity disabled:opacity-30">
+          <Send />
+        </button>
       </div>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ right: reasoning */
+/* ------------------------------------------------------------------ transcript drawer */
 
-function Sidebar({ current, plan, timeline }) {
-  const activity = timeline.filter((i) => i.type === "tool" || (i.type === "answer" && i.verdict)).slice(-8).reverse();
-  const ex = current && EXAMINERS[current.speaker];
+function Drawer({ open, onClose, timeline, plan }) {
+  const [tab, setTab] = useState("transcript");
+  const end = useRef(null);
+  useEffect(() => {
+    if (open && tab === "transcript") end.current?.scrollIntoView({ block: "end" });
+  }, [open, tab, timeline.length]);
+
   return (
-    <aside className="hidden min-h-0 flex-col gap-4 overflow-y-auto p-4 lg:flex">
-      <section className="rounded-2xl border border-line bg-surface p-4">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">Why this question?</div>
-        {current ? (
-          <>
-            <div className={`mt-2 text-[14px] font-semibold ${TONE[ex.tone].text}`}>{ex.name}</div>
-            <p className="mt-1.5 text-[14px] leading-relaxed">{whyOf(current) || "—"}</p>
-            {current.file_ref && (
-              <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-raised px-2 py-1 font-mono text-[12px]"><File />{current.file_ref}</div>
-            )}
-          </>
-        ) : (
-          <p className="mt-2 text-[14px] text-muted">The examiners' reasoning appears here as they ask.</p>
-        )}
-      </section>
-
-      {plan.length > 0 && (
-        <section className="rounded-2xl border border-line bg-surface p-4">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">The moderator's plan</div>
-          <ul className="mt-3 space-y-3">
-            {plan.map((p, i) => (
-              <li key={i} className="flex gap-2.5 text-[13px] leading-snug">
-                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${TONE[EXAMINERS[p.examiner]?.tone || "brand"].bg}`} />
-                <span><span className="font-mono text-[12px]">{p.file}</span><span className="block text-muted">{p.why}</span></span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="rounded-2xl border border-line bg-surface p-4">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">Activity</div>
-        {activity.length === 0 && <p className="mt-2 text-[13px] text-muted">Verdicts and tool calls (code searches, test runs) show up here.</p>}
-        <ul className="mt-3 space-y-2.5">
-          {activity.map((a, i) => (
-            <li key={i} className="text-[13px] leading-snug">
-              {a.type === "tool" ? (
-                <span className="flex gap-2 font-mono text-[12px] text-eng"><Wrench className="mt-0.5 shrink-0" />{a.message}</span>
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+            className="fixed inset-0 z-40 bg-black/30 lg:hidden" />
+          <motion.aside initial={{ x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 40, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="fixed inset-y-0 right-0 z-50 flex w-[min(400px,92vw)] flex-col border-l border-line bg-surface lg:static lg:z-auto lg:w-[380px] lg:bg-surface/70 lg:backdrop-blur">
+            <div className="flex items-center justify-between px-5 pt-5">
+              <div className="flex gap-1 rounded-full bg-raised p-1">
+                {[["transcript", "Transcript"], ["plan", "The plan"]].map(([k, label]) => (
+                  <button key={k} onClick={() => setTab(k)}
+                    className={`rounded-full px-4 py-1.5 text-[14px] font-medium transition-colors ${tab === k ? "bg-surface text-ink shadow-sm" : "text-muted"}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-ink/[0.06] hover:text-ink">×</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              {tab === "transcript" ? (
+                <ol className="space-y-4">
+                  {timeline.map((item, i) => <Row key={i} item={item} />)}
+                  <li ref={end} />
+                </ol>
               ) : (
-                <span className="flex items-start gap-2">
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${VERDICT[a.verdict].cls}`}>{VERDICT[a.verdict].label}</span>
-                  <span className="line-clamp-2 text-muted">“{a.message}”</span>
-                </span>
+                <PlanList plan={plan} />
               )}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </aside>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function Row({ item }) {
+  if (item.type === "question") {
+    const ex = EXAMINERS[item.speaker];
+    return (
+      <li className="flex gap-2.5">
+        <span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${TONE[ex.tone].bg}`} />
+        <div className="min-w-0 text-[14px] leading-relaxed">
+          <span className={`font-semibold ${TONE[ex.tone].text}`}>{ex.short} </span>
+          <CodeText text={cleanQuestion(item.message)} />
+        </div>
+      </li>
+    );
+  }
+  if (item.type === "answer") {
+    return (
+      <li className="ml-4 rounded-2xl bg-raised/70 px-3.5 py-2.5 text-[14px] leading-relaxed">
+        {item.message}
+        {item.verdict && <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${VERDICT[item.verdict].cls}`}>{VERDICT[item.verdict].label}</span>}
+      </li>
+    );
+  }
+  if (item.type === "tool") {
+    return <li className="ml-4 flex gap-2 font-mono text-[12px] text-eng"><Wrench className="mt-0.5 shrink-0" />{item.message}</li>;
+  }
+  return <li className="text-center text-[13px] text-muted">{item.message}</li>;
+}
+
+function PlanList({ plan }) {
+  if (!plan.length) return <p className="text-[14px] text-muted">The moderator's plan appears once the panel has read your project.</p>;
+  return (
+    <ul className="space-y-4">
+      {plan.map((p, i) => {
+        const ex = EXAMINERS[p.examiner];
+        return (
+          <li key={i} className="flex gap-2.5">
+            <span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${TONE[ex?.tone || "brand"].bg}`} />
+            <div className="text-[14px] leading-relaxed">
+              <span className={`font-semibold ${TONE[ex?.tone || "brand"].text}`}>{ex?.short} </span>
+              <span className="font-mono text-[13px]">{p.file}</span>
+              <span className="block text-muted">{p.why}</span>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

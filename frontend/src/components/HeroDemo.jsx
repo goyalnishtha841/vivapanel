@@ -27,17 +27,11 @@ export default function HeroDemo() {
   const current = [...shown].reverse().find((e) => EXAMINERS[e.speaker]);
 
   return (
-    <div className="overflow-hidden rounded-[22px] border border-line bg-surface/85 shadow-[0_40px_120px_-40px_rgb(var(--brand)/0.45)] backdrop-blur-xl">
-      {/* window chrome */}
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
-        <div className="flex gap-1.5">
-          <span className="h-3 w-3 rounded-full bg-bad/70" />
-          <span className="h-3 w-3 rounded-full bg-warn/70" />
-          <span className="h-3 w-3 rounded-full bg-good/70" />
-        </div>
-        <span className="font-mono text-[12px] text-muted">campus-library-api · live panel</span>
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-bad">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-bad" /> LIVE
+    <div className="overflow-hidden rounded-[24px] border border-line bg-surface/80 shadow-[0_50px_120px_-50px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <span className="text-[14px] font-medium text-ink">campus-library-api</span>
+        <span className="flex items-center gap-2 text-[13px] text-muted">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-brand" /> Replay of a real session
         </span>
       </div>
 
@@ -91,8 +85,8 @@ function Line({ e }) {
   }
   if (e.tool_used) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-dashed border-eng/40 bg-eng/5 px-3 py-2 font-mono text-[12px] text-eng">
-        <Wrench /> {e.speaker === "system" ? e.message : `run_tests · ${e.file_ref}`}
+      <div className="flex items-center gap-2 rounded-xl bg-eng/10 px-3 py-2 text-[13px] font-medium text-eng">
+        <Wrench /> {e.speaker === "system" ? e.message : `Running ${e.file_ref} in the sandbox…`}
       </div>
     );
   }
@@ -104,7 +98,7 @@ function Line({ e }) {
     <div className="max-w-[92%]">
       <div className="mb-1 flex items-center gap-2 text-[12px]">
         <span className={`font-semibold ${t.text}`}>{ex.short}</span>
-        {v && <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${VERDICT[v].cls}`}>previous answer: {VERDICT[v].label}</span>}
+        {v && <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${VERDICT[v].cls}`}>last answer: {VERDICT[v].label.toLowerCase()}</span>}
         {outcome && <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[11px] font-medium text-warn">claim {outcome}</span>}
       </div>
       <div className={`rounded-2xl rounded-tl-md border-l-[3px] ${t.border} bg-raised/70 px-4 py-2.5 text-[14px] leading-snug text-ink`}>

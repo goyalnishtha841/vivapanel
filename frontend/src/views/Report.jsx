@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import Ambient from "../components/Ambient.jsx";
 import Avatar from "../components/Avatar.jsx";
 import CodeText from "../components/CodeText.jsx";
 import Logo from "../components/Logo.jsx";
@@ -38,12 +39,13 @@ export default function Report({ id, theme, onToggleTheme }) {
   }, [id]);
 
   return (
-    <div className="min-h-[100svh] bg-bg">
-      <header className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/80 px-4 py-3 backdrop-blur sm:px-6">
+    <div className="relative isolate min-h-[100svh]">
+      <div className="no-print"><Ambient /></div>
+      <header className="no-print sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 bg-bg/70 px-4 backdrop-blur-xl sm:px-6">
         <button onClick={() => go("/")} aria-label="Back to home"><Logo /></button>
         <div className="flex items-center gap-2">
           {report && (
-            <button onClick={() => window.print()} className="hidden items-center gap-2 rounded-full border border-line px-4 py-2 text-[14px] text-muted transition-colors hover:text-ink sm:flex">
+            <button onClick={() => window.print()} className="hidden items-center gap-2 rounded-full px-4 py-2 text-[14px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink sm:flex">
               <Print /> Save as PDF
             </button>
           )}
@@ -78,18 +80,16 @@ function Body({ r }) {
   const reached = r.topics.filter((t) => t.confidence !== null);
   return (
     <main className="mx-auto max-w-[1100px] px-4 pb-24 pt-10 sm:px-6">
-      {MODE === "demo" && (
-        <p className="no-print mb-6 rounded-xl border border-brand/30 bg-brand/10 px-4 py-2 text-center text-[13px]">
-          <span className="font-semibold text-brand">Demo:</span> this is the real report from the recorded session you just replayed.
-        </p>
-      )}
 
       {/* ------------------------------------------------ summary */}
       <section className="grid items-center gap-8 rounded-[28px] border border-line bg-surface p-6 sm:p-10 lg:grid-cols-[auto_1fr]"
         style={{ backgroundImage: "radial-gradient(60% 90% at 0% 0%, rgb(var(--brand) / 0.12), transparent 70%)" }}>
         <ScoreRing value={r.overall_score} color={rd.ring} />
         <div>
-          <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-muted">Viva report · {r.project}</div>
+          <div className="flex flex-wrap items-center gap-2 text-[15px] text-muted">
+            Viva report for <span className="font-medium text-ink">{r.project}</span>
+            {MODE === "demo" && <span title="The real report from the recorded session you just replayed" className="rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">demo</span>}
+          </div>
           <div className={`mt-2 text-[30px] font-bold leading-tight sm:text-[38px] ${rd.cls}`}>{rd.label}</div>
           <p className="mt-3 font-serif text-[22px] italic leading-snug sm:text-[25px]">“{r.headline}”</p>
           <div className="mt-5 flex flex-wrap gap-2 text-[13px] text-muted">
@@ -104,7 +104,7 @@ function Body({ r }) {
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-8">
           {/* ------------------------------------------------ topics */}
-          <Card title="Confidence by topic" note="Computed from the examiners' verdicts. Later answers count more, so recovering after a follow-up helps.">
+          <Card title="Confidence by topic">
             <ul className="space-y-5">
               {r.topics.map((t) => {
                 const ex = EXAMINERS[t.examiner];
@@ -139,7 +139,7 @@ function Body({ r }) {
           </Card>
 
           {/* ------------------------------------------------ weak spots */}
-          <Card title="Weak spots" note="Each one is backed by your own words, quoted from the transcript.">
+          <Card title="Weak spots">
             <div className="space-y-5">
               {r.weak_spots.map((w, i) => (
                 <div key={i} className="rounded-2xl border border-bad/25 bg-bad/[0.04] p-5">
@@ -156,7 +156,7 @@ function Body({ r }) {
           </Card>
 
           {/* ------------------------------------------------ tests */}
-          <Card title="What the tests showed" note="Claims you made, checked by running your project's tests in an isolated sandbox.">
+          <Card title="What the tests showed">
             {r.test_evidence.length === 0 ? (
               <p className="text-[15px] text-muted">No claims were checked against the tests in this session.</p>
             ) : (
@@ -183,7 +183,7 @@ function Body({ r }) {
           </Card>
 
           {(r.code_checks || []).length > 0 && (
-            <Card title="Code checks by the Engineer" note="Searches and file reads the Engineer made to verify your answers.">
+            <Card title="Code checks by the Engineer">
               <ul className="space-y-2">
                 {r.code_checks.map((c, i) => (
                   <li key={i} className="flex gap-2 font-mono text-[12px]">
@@ -196,7 +196,7 @@ function Body({ r }) {
           )}
 
           {/* ------------------------------------------------ unanswered */}
-          <Card title="Questions you didn't answer" note="Worth preparing an answer for each one before the real viva.">
+          <Card title="Questions you didn't answer">
             {r.unanswered.length === 0 ? (
               <p className="text-[15px] text-muted">None. Every question got a real attempt.</p>
             ) : (
@@ -234,7 +234,7 @@ function Card({ title, note, children }) {
     <section className="rounded-[22px] border border-line bg-surface p-6 sm:p-7">
       <h2 className="text-[21px] font-bold">{title}</h2>
       {note && <p className="mt-1 text-[14px] text-muted">{note}</p>}
-      <div className="mt-5">{children}</div>
+      <div className="mt-6">{children}</div>
     </section>
   );
 }
@@ -291,7 +291,7 @@ function StudyPlan({ steps }) {
     <section className="rounded-[22px] border border-brand/30 bg-surface p-6 lg:sticky lg:top-24"
         style={{ backgroundImage: "radial-gradient(80% 60% at 100% 0%, rgb(var(--brand) / 0.12), transparent 70%)" }}>
         <h2 className="text-[21px] font-bold">Your study plan</h2>
-        <p className="mt-1 text-[14px] text-muted">{left} of {total} minutes left · tick steps off as you go</p>
+        <p className="mt-1 text-[15px] text-muted">{left} of {total} minutes left</p>
         <ol className="mt-5 space-y-3">
           {steps.map((s, i) => {
             const isDone = done.has(i);
@@ -339,7 +339,6 @@ function Recruiter({ text }) {
           </button>
         </div>
         <p className="mt-3 text-[15px] leading-relaxed">{text}</p>
-        <p className="mt-3 text-[12px] text-muted">Neutral and evidence-based: every claim above traces back to an answer or a test result in this report.</p>
       </section>
   );
 }

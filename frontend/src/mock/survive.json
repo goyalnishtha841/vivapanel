@@ -1,0 +1,38 @@
+{
+  "source": "Verdicts and follow-ups produced by the live Professor agent (Groq gpt-oss-120b). A and C: recorded session docs/evidence/2026-10-20-groq-live-panel-with-sandbox.json (turns 3-6). B: single live call on 2026-10-20.",
+  "file": "app/auth.py",
+  "code": "SECRET_KEY = 'library-secret-123'\n\ndef hash_password(pw: str) -> str:\n    return hashlib.sha256(pw.encode()).hexdigest()\n\ndef verify_password(pw: str, hashed: str) -> bool:\n    return hash_password(pw) == hashed",
+  "highlight": [
+    4
+  ],
+  "question": "Can you explain why you chose plain SHA-256 without a salt for password hashing and what security trade-offs this entails?",
+  "answers": [
+    {
+      "id": "a",
+      "label": "The confident one",
+      "text": "It's secure because we hash passwords and use JWT.",
+      "verdict": "weak",
+      "judgement": "The student gave a generic statement and did not address the missing salt or the security implications of using plain SHA-256.",
+      "next": "What specific risks does using unsalted SHA-256 pose, and how would adding a salt or using a dedicated password-hashing library improve security?",
+      "mark": "generic — no salt, no trade-offs"
+    },
+    {
+      "id": "b",
+      "label": "The buzzword one",
+      "text": "SHA-256 is a strong cryptographic hash used everywhere, even in Bitcoin, so the stored passwords are safe.",
+      "verdict": "weak",
+      "judgement": "The answer only asserts SHA-256 is strong, without addressing the lack of a salt or the resulting vulnerabilities; it does not demonstrate understanding of the security trade-offs.",
+      "next": "How does using an unsalted SHA-256 hash affect resistance to rainbow-table attacks, and what alternative approach would mitigate this risk?",
+      "mark": "asserts “strong”, ignores the salt"
+    },
+    {
+      "id": "c",
+      "label": "The one that knows the code",
+      "text": "hash_password is plain sha256 with no salt, so identical passwords give identical hashes and it's fast to brute force; bcrypt or argon2 with a per-user salt would fix it. SECRET_KEY is also hard-coded in auth.py, it should come from an environment variable.",
+      "verdict": "strong",
+      "judgement": "The student correctly identified the security risks of unsalted SHA-256 and explained how salting and using a dedicated password-hashing library would mitigate them, also noting the hard-coded secret.",
+      "next": null,
+      "mark": "names the flaw, the fix, the secret"
+    }
+  ]
+}

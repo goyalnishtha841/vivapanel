@@ -24,6 +24,8 @@ export default {
       fontFamily: {
         sans: ["Outfit", "system-ui", "sans-serif"],
         serif: ["Instrument Serif", "Georgia", "serif"],
+        // the red pen: margin notes and marks
+        hand: ["Caveat", "cursive"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
     },
