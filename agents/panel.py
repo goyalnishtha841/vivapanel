@@ -19,7 +19,8 @@ from collections.abc import Iterator
 
 from pydantic import BaseModel
 
-from .examiner import DISPLAY, MAX_FOLLOW_UPS, Examiner
+from .examiner import DISPLAY, Examiner
+from .llm import LLMError
 from .moderator import ORDER, Moderator
 from .schemas import Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, ProjectSummary, Turn
 
@@ -92,7 +93,11 @@ class Panel:
 
         # 1. The examiner who asked judges the answer and decides: follow up or yield.
         asker = self.examiners[turn.examiner]
-        d = asker.respond(st.transcript, st.follow_ups_on_topic)
+        try:
+            d = asker.respond(st.transcript, st.follow_ups_on_topic)
+        except LLMError:
+            turn.answer = None  # keep the question open so the student can resend the answer
+            raise
         turn.verdict, turn.judgement = d.verdict, d.judgement
         st.assessments.append(Assessment(
             examiner=turn.examiner, topic=turn.topic, file_ref=turn.file_ref, question=turn.question,
@@ -111,8 +116,11 @@ class Panel:
                 and d.verdict != "no_answer":
             challenger = self.moderator.challenger_for(turn, st.challenges_used)
             if challenger:
-                c = self.examiners[challenger].consider_challenge(st.transcript)
-                if c.interject:
+                try:
+                    c = self.examiners[challenger].consider_challenge(st.transcript)
+                except LLMError:
+                    c = None  # a challenge is optional; carry on without it
+                if c and c.interject:
                     st.challenges_used += 1
                     st.follow_ups_on_topic = 1  # challenger gets at most one more follow-up here
                     yield self._ask(
@@ -140,9 +148,10 @@ class Panel:
     # ---------- helpers ----------
 
     def _open(self, role: Role) -> Iterator[Event]:
-        topic = self.state.queues[role].pop(0)
+        topic = self.state.queues[role][0]
+        q = self.examiners[role].open_topic(topic, self.state.transcript)  # pop only after this succeeds
+        self.state.queues[role].pop(0)
         self.state.follow_ups_on_topic = 0
-        q = self.examiners[role].open_topic(topic, self.state.transcript)
         yield self._ask(role, "open", topic.title, q.file_ref, q.question, q.reasoning)
 
     def _ask(self, role: Role, kind: str, topic: str, file_ref: str, question: str, reasoning: str) -> Event:
