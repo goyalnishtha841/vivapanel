@@ -1,0 +1,258 @@
+[
+ {
+  "speaker": "moderator",
+  "message": "Reading your project and planning the panel\u2026",
+  "reasoning": "Moderator is assigning topics so examiners don't overlap.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:27Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Welcome to your viva. The Professor will ask about password hashing strategy and borrow concurrency safety; the Engineer will ask about SQLite scalability limits and SQL injection risk; the Junior will ask about JWT authentication flow and borrow\u2011return lifecycle.",
+  "reasoning": "Professor \u2192 app/auth.py: The design uses plain SHA\u2011256 without a salt, raising questions about security and correctness of the authentication design. | Professor \u2192 app/routes/loans.py: The SELECT\u2011then\u2011UPDATE pattern can suffer race conditions, potentially breaking the claimed prevention of double\u2011borrowing. | Engineer \u2192 app/db.py: Opening a new SQLite connection per request may not sustain thousands of concurrent users, contradicting the README scalability claim. | Engineer \u2192 app/routes/books.py: The search endpoint builds its SQL with an f\u2011string, exposing the API to injection attacks. | Junior \u2192 app/auth.py: A plain\u2011language explanation is needed of how a token is verified and user information is extracted for each request. | Junior \u2192 app/routes/loans.py: The junior should describe the end\u2011to\u2011end steps when a user returns a book, from the HTTP call to the database update and response.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:30Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Looking at `hash_password()` in `app/auth.py`: Can you explain why you chose plain SHA\u2011256 without a salt for password hashing and what security trade\u2011offs this entails?",
+  "reasoning": "Assess understanding of password hashing security and justification for the chosen method.",
+  "file_ref": "app/auth.py:hash_password",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:31Z"
+ },
+ {
+  "speaker": "student",
+  "message": "It's secure because we hash passwords and use JWT.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:31Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Looking at `hash_password()` in `app/auth.py`: What specific risks does using unsalted SHA\u2011256 pose, and how would adding a salt or using a dedicated password\u2011hashing library improve security?",
+  "reasoning": "[weak] The student gave a generic statement and did not address the missing salt or the security implications of using plain SHA\u2011256. \u2192 The answer lacked detail on the trade\u2011offs, so a deeper question is needed to probe understanding.",
+  "file_ref": "app/auth.py:hash_password",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:31Z"
+ },
+ {
+  "speaker": "student",
+  "message": "hash_password is plain sha256 with no salt, so identical passwords give identical hashes and it's fast to brute force; bcrypt or argon2 with a per-user salt would fix it. SECRET_KEY is also hard-coded in auth.py, it should come from an environment variable.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:31Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Engineer, over to you.",
+  "reasoning": "Professor judged the last answer strong: The student correctly identified the security risks of unsalted SHA\u2011256 and explained how salting and using a dedicated password\u2011hashing library would mitigate them, also noting the hard\u2011coded secret. Topic closed; Engineer has 2 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:33Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "In `app/db.py` you open a new SQLite connection for every request; how does this design behave under thousands of simultaneous users, and what bottlenecks or failures might you see?",
+  "reasoning": "The question probes scalability and concurrency limits of per\u2011request SQLite connections, directly tied to the README claim.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:33Z"
+ },
+ {
+  "speaker": "student",
+  "message": "SQLite is simple and fast.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:33Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "Looking at `app/db.py`: What happens if two users try to borrow different copies at the exact same time given each request opens its own SQLite connection?",
+  "reasoning": "[weak] The student gave a generic claim that SQLite is simple and fast, without addressing the concurrency issues of opening a new connection per request. \u2192 We need to probe understanding of SQLite's write lock and potential race conditions.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:34Z"
+ },
+ {
+  "speaker": "student",
+  "message": "get_connection opens a new sqlite3 connection on every call and never closes it. SQLite only allows one writer at a time, so with many students the writes queue up on the file lock; for real scale I'd move to Postgres with a connection pool.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:34Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "I\u2019d add a point, Engineer \u2014 How does the current design ensure that the borrow operation is atomic, and what happens if a connection is left open during a crash?",
+  "reasoning": "Engineer rated this strong. Professor [extend]: The student explained writer locking but omitted transaction atomicity and resource cleanup concerns.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:51Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:51Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Looking at `app/db.py`: Considering the borrow_book endpoint, does the current code wrap the SELECT and UPDATE/INSERT statements in a transaction, and what would be the effect if the process crashes after the UPDATE but before the INSERT?",
+  "reasoning": "[weak] The answer did not address how atomicity is achieved or what happens to open connections on crash, providing no explanation of transaction handling. \u2192 The student evaded the question, so a deeper query about transaction atomicity is needed.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:54Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:33:54Z"
+ },
+ {
+  "speaker": "junior",
+  "message": "I'd add a point, Professor \u2014 Could you explain how the borrow_book endpoint ensures atomicity of the SELECT and UPDATE/INSERT, and what happens if the process crashes between those statements?",
+  "reasoning": "Professor rated this weak. Junior [extend]: The student omitted transaction handling details, so I need to probe this missing aspect.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:11Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:11Z"
+ },
+ {
+  "speaker": "junior",
+  "message": "Looking at `app/db.py`: Can you walk through each SQL statement in borrow_book and tell me whether they\u2019re wrapped in a single transaction, and what the database state would be if the server crashes after the UPDATE but before the INSERT?",
+  "reasoning": "[weak] The student\u2019s reply does not address the question at all, merely repeating earlier statements. It neither explains transaction usage nor crash consequences, so it is incomplete and incorrect for the code. \u2192 The student failed to answer; a deeper question is needed.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:11Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:11Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Professor, over to you.",
+  "reasoning": "Junior judged the last answer no_answer: The student did not provide any explanation about transactions or crash behavior; they simply repeated a prior statement, which is insufficient for this question. Topic closed; Professor has 1 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:12Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "In the current `borrow_book` implementation, how is the SELECT\u2011then\u2011UPDATE sequence protected against a race condition where two requests read the same copy as available simultaneously?",
+  "reasoning": "To verify the student understands concurrency control and atomicity beyond the naive SELECT\u2011UPDATE pattern.",
+  "file_ref": "app/routes/loans.py:borrow_book",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:30Z"
+ },
+ {
+  "speaker": "student",
+  "message": "It's safe, my tests cover double-borrowing: test_borrow_twice_returns_409 passes.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:30Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "That's a testable claim. Let me run tests/test_loans.py in the sandbox.",
+  "reasoning": "Student claimed: \"My tests cover double\u2011borrowing: test_borrow_twice_returns_409 passes\". Checking it against the project's own tests.",
+  "file_ref": "tests/test_loans.py",
+  "tool_used": "run_tests",
+  "timestamp": "2026-10-19T21:34:44Z"
+ },
+ {
+  "speaker": "system",
+  "message": "Sandbox: passed \u2014 2 passed, 0 failed (1.8s)",
+  "reasoning": "pytest -q tests/test_loans.py",
+  "file_ref": "tests/test_loans.py",
+  "tool_used": "run_tests",
+  "timestamp": "2026-10-19T21:34:44Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "The test suite runs two back\u2011to\u2011back borrow requests in the same process, which passes, but it does not simulate simultaneous concurrent requests; thus it does not prove protection against race conditions. Can you describe how you would test that two concurrent borrow requests for the same copy cannot both succeed?",
+  "reasoning": "[test inconclusive] My tests cover double\u2011borrowing: test_borrow_twice_returns_409 passes",
+  "file_ref": "tests/test_loans.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:45Z"
+ },
+ {
+  "speaker": "student",
+  "message": "borrow_book reads available, then updates it in a separate statement, so two requests can both see available=1 and both borrow. I'd make it one atomic UPDATE copies SET available=0 WHERE id=? AND available=1 and check rowcount.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:34:45Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "Looking at `borrow_book()` in `app/routes/loans.py`: Given the current implementation, how would you modify the code to ensure the SELECT and UPDATE are executed within a single transaction and that the operation is safe from race conditions?",
+  "reasoning": "[weak] The student correctly identified the race condition and suggested a safer atomic UPDATE, but the current code does not implement this change, so the answer does not reflect the actual implementation. \u2192 The student recognized the issue but has not shown how to fix it in the existing code; a concrete implementation plan is needed.",
+  "file_ref": "app/routes/loans.py:borrow_book",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:35:06Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:35:06Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Junior, over to you.",
+  "reasoning": "Engineer judged the last answer no_answer: The student gave no explanation or code change for making the SELECT and UPDATE atomic, repeating earlier statements instead of addressing the question. Topic closed; Junior has 2 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:35:14Z"
+ },
+ {
+  "speaker": "junior",
+  "message": "How does get_current_user verify an incoming JWT and what user data does it return to the rest of the app?",
+  "reasoning": "We want a plain\u2011language walk\u2011through of token decoding and the returned payload, which the student hasn\u2019t yet explained in detail.",
+  "file_ref": "app/auth.py:get_current_user",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:35:15Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:35:15Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "That's the end of the viva. Thank you \u2014 your report is being prepared.",
+  "reasoning": "Question limit (12) reached. 12 questions answered, 2 cross-challenge(s).",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:35:16Z"
+ }
+]

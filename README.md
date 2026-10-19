@@ -33,3 +33,5 @@ Each run is logged to `runs/*.jsonl` in the shared Event format. `VIVA_DEBUG=1` 
 3. When an examiner yields, a colleague may **cross-challenge**: disagree with the verdict or push the point into their own lane (max 2 per session).
 4. Otherwise the moderator hands the floor to the next examiner (round-robin) until topics or the 12-question budget run out.
 5. All examiners share one transcript, so they can catch the student contradicting an earlier answer.
+6. When an answer makes a **testable claim** ("my tests cover double-borrowing"), the Engineer runs the project's tests in the sandbox and judges the result against the claim: supported, contradicted, or inconclusive (tests pass but don't exercise the claim).
+7. The **scoring agent** builds the report. Code computes every score from the verdicts and copies quotes from the transcript; the model writes weak spots, the study plan and the recruiter summary, and every turn or file it cites is validated.

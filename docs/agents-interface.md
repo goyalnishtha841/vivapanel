@@ -6,7 +6,7 @@ Everything B needs is in `agents/panel.py`. One `Panel` per viva session.
 from agents.panel import Panel
 from agents.schemas import ProjectSummary, Event
 
-panel = Panel(summary)                 # summary: ProjectSummary from your repo reader
+panel = Panel(summary, run_tests=run_tests)   # run_tests: your sandbox, see below
 for event in panel.start():            # moderator plan + first question
     publish(session_id, event)         # -> SSE on GET /stream/{id}
 
@@ -18,7 +18,28 @@ panel.awaiting_answer                  # True when a question is open
 panel.done                             # True after the moderator closes the session
 panel.state.assessments                # per-answer verdicts for GET /report/{id}
 panel.state.transcript                 # full Q&A with verdicts
+
+# on GET /report/{id}, once panel.done
+from agents.scoring import build_report
+report = build_report(summary, panel.state)   # one LLM call, ~15 s; cache it in SQLite
+return report.model_dump()
 ```
+
+## run_tests (Day 3)
+
+Pass a function bound to the session's repo copy:
+
+```python
+def run_tests(test_path: str | None) -> RunTestsResult:   # None = whole suite
+    ...  # Docker: no network, read-only repo, 512 MB, 1 CPU, 60 s
+```
+
+- Never raise for failing tests; return `status="failed"`. Sandbox trouble → `status="error"` / `"timeout"`.
+  If it does raise, the panel converts the exception to an `error` result and carries on.
+- `test_path` is always a test file from `summary.files` (the agents check), or `None`.
+- At most one run per session (`MAX_TEST_RUNS` in `agents/panel.py`), so a 60 s timeout is acceptable.
+- Until the sandbox exists, use `agents.tools.mock_test_runner()` (canned results for the mock repo).
+- No `run_tests` (or no Engineer on the panel) → claims are simply not verified.
 
 ## Things to know
 
@@ -39,7 +60,7 @@ panel.state.transcript                 # full Q&A with verdicts
 ## Event speakers you will see
 
 `moderator` (plan, handovers, closing) · `professor` · `engineer` · `junior` · `student` (echo of the
-answer) · `system` (errors). `tool_used` is always `null` until `run_tests` lands on Day 3.
+answer) · `system` (errors and sandbox results). See api-contract.md §5 for the three sandbox events.
 
 ## Limits (in `agents/panel.py`)
 

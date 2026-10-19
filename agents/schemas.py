@@ -97,6 +97,28 @@ class RespondDecision(BaseModel):
     file_ref: str = Field(description="For follow_up: exact repo path from the file list. Empty when yielding.")
     question: str = Field(description="For follow_up: the single question, max 2 sentences, max 35 words. Empty when yielding.")
     reasoning: str = Field(description="Why follow up or yield, in one sentence.")
+    testable_claim: str = Field(
+        description="If the student's LAST answer claims something the project's own tests could confirm or refute "
+        "(e.g. 'my tests cover double-borrowing', 'expired tokens are rejected', 'all tests pass'), restate that "
+        "claim in one sentence. Empty string if there is no such claim."
+    )
+    test_path: str = Field(
+        description="If testable_claim is set: the test file from the file list most likely to check it. "
+        "Empty string to run the whole suite."
+    )
+
+
+class VerifyDecision(BaseModel):
+    """The Engineer reading a sandbox test result against the student's claim."""
+
+    outcome: Literal["supported", "contradicted", "inconclusive"] = Field(
+        description="supported = the result backs the claim; contradicted = the result disproves it; "
+        "inconclusive = the tests ran but don't actually exercise the claim, or the run errored/timed out."
+    )
+    explanation: str = Field(
+        description="One or two sentences citing the result (counts, failing test names) and what it means for the claim."
+    )
+    question: str = Field(description="One question to the student about this result. Max 2 sentences, max 35 words.")
 
 
 class ChallengeDecision(BaseModel):
@@ -119,7 +141,7 @@ class Turn(BaseModel):
     """One question and its answer, in the panel's shared memory."""
 
     examiner: Examiner
-    kind: Literal["open", "follow_up", "challenge"]
+    kind: Literal["open", "follow_up", "challenge", "verify"]
     topic: str
     file_ref: Optional[str]
     question: str
@@ -139,3 +161,102 @@ class Assessment(BaseModel):
     verdict: Verdict
     judgement: str
     timestamp: str = Field(default_factory=now_iso)
+
+
+class Verification(BaseModel):
+    """A student claim checked by running the project's tests in the sandbox."""
+
+    turn: int = Field(description="1-based index of the transcript turn whose answer made the claim.")
+    claim: str
+    test_path: Optional[str]
+    result: RunTestsResult
+    outcome: Literal["supported", "contradicted", "inconclusive"]
+    explanation: str
+
+
+# ---- Report (GET /report/{id}) ----
+
+class Quote(BaseModel):
+    turn: int
+    speaker: str
+    text: str
+
+
+class TopicScore(BaseModel):
+    topic: str
+    examiner: Examiner
+    file_ref: Optional[str]
+    confidence: Optional[int] = Field(description="0–100 from the verdicts on this topic; None if never reached.")
+    verdicts: list[Verdict]
+    note: str = ""
+    evidence: list[Quote] = []
+
+
+class WeakSpot(BaseModel):
+    title: str
+    file_ref: Optional[str]
+    why: str
+    evidence: list[Quote] = []
+
+
+class UnansweredQuestion(BaseModel):
+    turn: int
+    examiner: Examiner
+    question: str
+    file_ref: Optional[str]
+    answer: str
+
+
+class StudyStep(BaseModel):
+    title: str
+    action: str
+    file_ref: Optional[str]
+    minutes: int
+
+
+class Report(BaseModel):
+    repo_url: str
+    project: str
+    overall_score: int = Field(description="0–100, average of topic confidences.")
+    readiness: Literal["ready", "almost_ready", "needs_work", "not_ready"]
+    headline: str
+    topics: list[TopicScore]
+    weak_spots: list[WeakSpot]
+    unanswered: list[UnansweredQuestion]
+    test_evidence: list[Verification]
+    study_plan: list[StudyStep]
+    recruiter_summary: str
+    questions_asked: int
+    generated_at: str = Field(default_factory=now_iso)
+
+
+class _NarrativeWeakSpot(BaseModel):
+    title: str = Field(description="2–6 words.")
+    file_ref: str = Field(description="Exact repo path from the file list.")
+    why: str = Field(description="One or two sentences: what the student got wrong or couldn't explain, versus the code.")
+    turns: list[int] = Field(description="Transcript turn numbers (Q numbers) that show this weakness.")
+
+
+class _NarrativeTopicNote(BaseModel):
+    topic: str = Field(description="Exactly one of the topic names given.")
+    note: str = Field(description="One sentence on how the student did on this topic.")
+
+
+class _NarrativeStudyStep(BaseModel):
+    title: str = Field(description="2–6 words.")
+    action: str = Field(description="One concrete thing to do, tied to this repo (e.g. rewrite X, read about Y then explain Z).")
+    file_ref: str = Field(description="Exact repo path from the file list, or empty string.")
+    minutes: int = Field(description="Realistic time in minutes, 10–120.")
+
+
+class ReportNarrative(BaseModel):
+    """What the scoring LLM writes. Numbers and quotes are filled in by code, not the model."""
+
+    headline: str = Field(description="One sentence verdict on the student's understanding of their own project.")
+    topic_notes: list[_NarrativeTopicNote]
+    weak_spots: list[_NarrativeWeakSpot] = Field(description="2–5 most important weaknesses, worst first.")
+    study_plan: list[_NarrativeStudyStep] = Field(description="3–6 steps, most important first.")
+    recruiter_summary: str = Field(
+        description="3–4 sentences for a recruiter: what the student demonstrably understands and doesn't, citing "
+        "evidence (topics, test results). Neutral, factual, no hype."
+    )

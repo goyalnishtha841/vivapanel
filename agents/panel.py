@@ -22,10 +22,14 @@ from pydantic import BaseModel
 from .examiner import DISPLAY, Examiner
 from .llm import LLMError
 from .moderator import ORDER, Moderator
-from .schemas import Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, ProjectSummary, Turn
+from .schemas import (
+    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, ProjectSummary, RunTestsResult, Turn, Verification,
+)
+from .tools import TestRunner
 
 MAX_QUESTIONS = 12      # ~5 minute session
 MAX_CHALLENGES = 2      # cross-examiner interjections per session
+MAX_TEST_RUNS = 1       # sandbox verifications per session (each can take up to a minute)
 
 
 class PanelState(BaseModel):
@@ -36,12 +40,15 @@ class PanelState(BaseModel):
     assessments: list[Assessment] = []
     follow_ups_on_topic: int = 0
     challenges_used: int = 0
+    verifications: list[Verification] = []
     done: bool = False
 
 
 class Panel:
-    def __init__(self, summary: ProjectSummary, examiners: tuple[Role, ...] = ORDER, state: PanelState | None = None):
+    def __init__(self, summary: ProjectSummary, examiners: tuple[Role, ...] = ORDER, state: PanelState | None = None,
+                 run_tests: TestRunner | None = None):
         self.summary = summary
+        self.run_tests = run_tests
         self.state = state or PanelState(examiners=list(examiners))
         roles = tuple(self.state.examiners)
         self.moderator = Moderator(summary, roles)
@@ -53,8 +60,8 @@ class Panel:
         return self.state.model_dump_json()
 
     @classmethod
-    def from_json(cls, summary: ProjectSummary, data: str) -> "Panel":
-        return cls(summary, state=PanelState.model_validate_json(data))
+    def from_json(cls, summary: ProjectSummary, data: str, run_tests: TestRunner | None = None) -> "Panel":
+        return cls(summary, state=PanelState.model_validate_json(data), run_tests=run_tests)
 
     @property
     def done(self) -> bool:
@@ -105,6 +112,12 @@ class Panel:
         ))
 
         out_of_time = len(st.transcript) >= MAX_QUESTIONS
+
+        # 1b. A testable claim takes priority: the Engineer checks it in the sandbox.
+        if d.testable_claim and not out_of_time and self._can_verify():
+            yield from self._verify(len(st.transcript), d.testable_claim, d.test_path or None)
+            return
+
         if d.action == "follow_up" and not out_of_time:
             st.follow_ups_on_topic += 1
             yield self._ask(turn.examiner, "follow_up", turn.topic, d.file_ref, d.question,
@@ -112,7 +125,8 @@ class Panel:
             return
 
         # 2. Asker yields. A colleague may challenge that verdict before the floor moves on.
-        if not out_of_time and st.challenges_used < MAX_CHALLENGES and turn.kind != "challenge" \
+        topic_challenged = any(t.kind == "challenge" and t.topic == turn.topic for t in st.transcript)
+        if not out_of_time and st.challenges_used < MAX_CHALLENGES and not topic_challenged \
                 and d.verdict != "no_answer":
             challenger = self.moderator.challenger_for(turn, st.challenges_used)
             if challenger:
@@ -144,6 +158,41 @@ class Panel:
                       f"Topic closed; {DISPLAY[nxt]} has {len(st.queues[nxt])} topic(s) left.",
         )
         yield from self._open(nxt)
+
+    # ---------- sandbox verification ----------
+
+    def _can_verify(self) -> bool:
+        return (self.run_tests is not None and "engineer" in self.examiners
+                and len(self.state.verifications) < MAX_TEST_RUNS)
+
+    def _verify(self, turn_no: int, claim: str, test_path: str | None) -> Iterator[Event]:
+        st = self.state
+        turn = st.transcript[turn_no - 1]
+        target = test_path or "the full test suite"
+        yield Event(
+            speaker="engineer", message=f"That's a testable claim. Let me run {target} in the sandbox.",
+            reasoning=f"Student claimed: \"{claim}\". Checking it against the project's own tests.",
+            file_ref=test_path, tool_used="run_tests",
+        )
+        try:
+            result = self.run_tests(test_path)
+        except Exception as e:  # the sandbox must never take the viva down
+            result = RunTestsResult(status="error", command=f"run_tests({test_path!r})", output_tail=str(e)[-500:])
+        yield Event(
+            speaker="system",
+            message=f"Sandbox: {result.status} — {result.passed} passed, {result.failed} failed"
+                    + (f", {result.errors} errors" if result.errors else "") + f" ({result.duration_s:.1f}s)",
+            reasoning=f"{result.command}" + (f" · failing: {', '.join(result.failing_tests)}" if result.failing_tests else ""),
+            file_ref=test_path, tool_used="run_tests",
+        )
+        engineer = self.examiners["engineer"]
+        v = engineer.verify(st.transcript, claim, result)
+        st.verifications.append(Verification(
+            turn=turn_no, claim=claim, test_path=test_path, result=result, outcome=v.outcome, explanation=v.explanation,
+        ))
+        st.follow_ups_on_topic = 1  # Engineer judges the next answer and may follow up once more
+        yield self._ask("engineer", "verify", turn.topic, test_path or turn.file_ref or "", f"{v.explanation} {v.question}",
+                        f"[test {v.outcome}] {claim}")
 
     # ---------- helpers ----------
 

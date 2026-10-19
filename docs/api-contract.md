@@ -13,7 +13,7 @@ The Python versions of these shapes live in `agents/schemas.py` — import them,
 | `POST` | `/session` | `{"repo_url": "https://github.com/owner/name"}` | `{"session_id": "abc123"}` |
 | `POST` | `/answer` | `{"session_id": "abc123", "answer": "student's reply"}` | `{"ok": true}` |
 | `GET` | `/stream/{id}` | — | Server-sent events, one `data:` line per **Event** (below) |
-| `GET` | `/report/{id}` | — | **Report** JSON (defined Day 3) |
+| `GET` | `/report/{id}` | — | **Report** JSON (section 6) |
 | `GET` | `/health` | — | `{"status": "ok"}` |
 
 Errors: `{"error": "<code>", "detail": "<human message>"}` with codes
@@ -81,7 +81,33 @@ See `agents/mock_data/mock_summary.json` for a full example. Key fields:
 
 ---
 
-## 5. Test repos (fill in together)
+## 5. Sandbox events (Day 3)
+
+When the Engineer checks a claim, the stream carries three events in a row:
+
+1. `{"speaker": "engineer", "tool_used": "run_tests", "message": "That's a testable claim. Let me run tests/test_loans.py in the sandbox.", "file_ref": "tests/test_loans.py"}` — show a spinner: "Engineer is running tests…"
+2. `{"speaker": "system", "tool_used": "run_tests", "message": "Sandbox: passed — 2 passed, 0 failed (1.8s)", "reasoning": "pytest -q tests/test_loans.py"}` — the raw result
+3. `{"speaker": "engineer", "tool_used": null, "reasoning": "[test inconclusive] <claim>", "message": "<what the result means> <question>"}` — `reasoning` starts with `[test supported]`, `[test contradicted]` or `[test inconclusive]`
+
+## 6. Report (GET /report/{id})
+
+Defined as `Report` in `agents/schemas.py`. Example: `docs/evidence/2026-10-20-groq-live-report.json`.
+
+| Field | Notes |
+|---|---|
+| `overall_score` | 0–100, average of topic confidences (computed in code from verdicts) |
+| `readiness` | `ready` · `almost_ready` · `needs_work` · `not_ready` |
+| `headline` | one sentence |
+| `topics[]` | `{topic, examiner, file_ref, confidence (null = not reached), verdicts[], note, evidence[]}` |
+| `weak_spots[]` | `{title, file_ref, why, evidence[]}` — evidence quotes are copied from the transcript, not generated |
+| `unanswered[]` | `{turn, examiner, question, file_ref, answer}` |
+| `test_evidence[]` | `{turn, claim, test_path, result: RunTestsResult, outcome, explanation}` |
+| `study_plan[]` | `{title, action, file_ref, minutes}` |
+| `recruiter_summary` | 3–4 sentences |
+
+`Quote` = `{turn, speaker, text}`.
+
+## 7. Test repos (fill in together)
 
 | # | Repo | Language | Has tests | Sandbox works? |
 |---|---|---|---|---|

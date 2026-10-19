@@ -9,6 +9,7 @@ three examiners remember everything the student has said to anyone. Three moves:
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import TypeVar
@@ -25,7 +26,9 @@ from .schemas import (
     ProjectSummary,
     QuestionDecision,
     RespondDecision,
+    RunTestsResult,
     Turn,
+    VerifyDecision,
 )
 
 PROMPTS = Path(__file__).parent / "prompts"
@@ -119,17 +122,44 @@ class Examiner:
                 f"## Your turn\nThe student just answered YOUR question Q{len(transcript)}. "
                 "Judge that answer against the code. Then either follow up with a narrower, deeper question on the "
                 "same topic (when the answer was partial, weak or no_answer and digging further is worthwhile), or "
-                f"yield the floor (when the answer was strong or the topic is exhausted). {limit}"
+                f"yield the floor (when the answer was strong or the topic is exhausted). {limit}\n\n"
+                "Also: if the answer makes a claim the project's own tests could confirm or refute, fill "
+                f"testable_claim and pick test_path from these test files: {json.dumps(self._test_files())} "
+                "(empty string = whole suite). Claims about behaviour that no test plausibly touches don't count."
             )
             d = self._grounded(
                 user, RespondDecision, lambda d: d.file_ref if d.action == "follow_up" else None,
                 default_ref=last.file_ref or fallback_ref(self.summary),
             )
+        if d.test_path and d.test_path not in self._test_files():
+            d = d.model_copy(update={"test_path": ""})  # guardrail: unknown test file -> run the whole suite
         if follow_ups_used >= MAX_FOLLOW_UPS and d.action == "follow_up":
             d = d.model_copy(update={"action": "yield", "question": "", "file_ref": ""})
         if d.action == "follow_up":
             d = d.model_copy(update={"question": ensure_question_cites(d.question, d.file_ref)})
         return d
+
+    def verify(self, transcript: list[Turn], claim: str, result: RunTestsResult) -> VerifyDecision:
+        """Compare a sandbox test result with the student's claim (the Engineer's job)."""
+        if llm.is_offline():
+            return _offline_verify(claim, result)
+        user = (
+            f"## Panel transcript\n{render_transcript(transcript)}\n\n"
+            f"## Sandbox result\nThe student claimed: \"{claim}\"\n"
+            f"You ran `{result.command}` in an isolated sandbox (no network, time and memory limits).\n"
+            f"Status: {result.status} — {result.passed} passed, {result.failed} failed, {result.errors} errors, "
+            f"{result.skipped} skipped in {result.duration_s:.1f}s.\n"
+            f"Failing tests: {json.dumps(result.failing_tests)}\n"
+            f"Output tail:\n```\n{result.output_tail[-2500:]}\n```\n\n"
+            "## Your turn\nDecide whether this result supports, contradicts, or can't settle the claim. Be careful: "
+            "passing tests only support a claim if they actually exercise it (a test that borrows twice in sequence "
+            "says nothing about two requests at the same moment). Then ask the student one question about the result."
+        )
+        return llm.structured_call(self.system, user, VerifyDecision)
+
+    def _test_files(self) -> list[str]:
+        from .moderator import is_test_file
+        return [f for f in self.summary.files if is_test_file(f)]
 
     def consider_challenge(self, transcript: list[Turn]) -> ChallengeDecision:
         last = transcript[-1]
@@ -197,6 +227,7 @@ class Examiner:
 
     def _offline_respond(self, last: Turn, follow_ups_used: int) -> RespondDecision:
         verdict, judgement = heuristic_judge(last, self._key_file(last.file_ref))
+        claim, test_path = _heuristic_claim(last.answer or "", self._test_files())
         if verdict in ("weak", "partial", "no_answer") and follow_ups_used < MAX_FOLLOW_UPS:
             kf = self._key_file(last.file_ref)
             func = kf.functions[(follow_ups_used + 1) % len(kf.functions)] if kf and kf.functions else None
@@ -205,10 +236,12 @@ class Examiner:
                 verdict=verdict, judgement=judgement, action="follow_up", file_ref=ref,
                 question=f"Let's be concrete: walk me through exactly what `{func or ref}` does and why you wrote it that way.",
                 reasoning="Answer wasn't grounded in the code, so narrowing to a single function.",
+                testable_claim=claim, test_path=test_path,
             )
         return RespondDecision(
             verdict=verdict, judgement=judgement, action="yield", file_ref="", question="",
             reasoning="Topic covered well enough." if verdict == "strong" else "Follow-up limit reached.",
+            testable_claim=claim, test_path=test_path,
         )
 
     def _offline_challenge(self, last: Turn) -> ChallengeDecision:
@@ -238,3 +271,28 @@ def heuristic_judge(turn: Turn, kf: KeyFile | None) -> tuple[str, str]:
     if len(hits) >= 2:
         return "strong", f"Answer references the actual code ({', '.join(sorted(set(hits))[:3])})."
     return "partial", "Answer is generic and does not refer to anything specific in the code."
+
+
+def _heuristic_claim(answer: str, test_files: list[str]) -> tuple[str, str]:
+    """Offline: treat 'my tests …' / 'tested' / 'all tests pass' style answers as testable claims."""
+    a = answer.lower()
+    if not any(k in a for k in ("test", "tested", "covered", "coverage")):
+        return "", ""
+    path = next((f for f in test_files if f.rsplit("/", 1)[-1].removesuffix(".py") in a
+                 or f.rsplit("/", 1)[-1].removeprefix("test_").removesuffix(".py") in a), "")
+    return answer.strip()[:200], path
+
+
+def _offline_verify(claim: str, result: RunTestsResult) -> VerifyDecision:
+    if result.status in ("error", "timeout"):
+        return VerifyDecision(outcome="inconclusive",
+                              explanation=f"The test run ended with status {result.status}, so it can't settle the claim.",
+                              question="Can you show me how you ran these tests yourself?")
+    if result.failed:
+        names = ", ".join(t.split("::")[-1] for t in result.failing_tests) or f"{result.failed} test(s)"
+        return VerifyDecision(outcome="contradicted",
+                              explanation=f"{result.failed} test(s) failed: {names}. That contradicts the claim.",
+                              question=f"{names} fails in the sandbox. Why, and what would you change to fix it?")
+    return VerifyDecision(outcome="supported",
+                          explanation=f"All {result.passed} tests passed, which is consistent with the claim.",
+                          question="Which of these tests actually exercises the case you described?")

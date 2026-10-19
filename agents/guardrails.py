@@ -28,8 +28,8 @@ def ensure_question_cites(question: str, file_ref: str) -> str:
     basename = path.rsplit("/", 1)[-1]
     if basename in question or path in question or (func and func in question):
         return question
-    anchor = f"`{func}()` in `{path}`" if func else f"`{path}`"
-    return f"Looking at {anchor}: {question}"
+    anchor = f"`{func}()`" if func else f"`{basename}`"
+    return f"On {anchor}: {question}"
 
 
 def is_non_answer(answer: str) -> bool:
