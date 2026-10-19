@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 from dotenv import load_dotenv
@@ -54,8 +55,23 @@ class RateLimited(LLMError):
 DEBUG = os.getenv("VIVA_DEBUG", "0") == "1"
 _big_model_exhausted = False
 
+# Output caps per call type (Groq counts hidden reasoning in these too). Generous enough to never cut a
+# valid decision short, tight enough that a runaway answer can't burn the budget.
+MAX_OUTPUT = {"QuestionDecision": 1200, "RespondDecision": 1500, "ChallengeDecision": 1000, "VerifyDecision": 1200,
+              "PanelPlan": 2500, "ReportNarrative": 3000, "SummaryDraft": 3000}
+
+
+def _cap(schema: type) -> int:
+    return MAX_OUTPUT.get(schema.__name__, 2000)
+
+
+# Every real call's token usage, as reported by the provider: [{call, model, input, output, seconds}].
+# Read it (and reset it) to measure a session; see agents/profile_tokens.py.
+USAGE: list[dict] = []
 
 def _log(model: str, schema: type, started: float, tokens_in: int, tokens_out: int) -> None:
+    USAGE.append({"call": schema.__name__, "model": model, "input": tokens_in, "output": tokens_out,
+                  "seconds": round(time.time() - started, 2)})
     if DEBUG:
         print(f"  [llm] {schema.__name__:<17} {model:<22} {time.time() - started:5.1f}s "
               f"in={tokens_in} out={tokens_out}", file=sys.stderr)
@@ -164,7 +180,7 @@ def _groq_call(system: str, user: str, schema: type[T], effort: str, model: str)
                 messages=messages,
                 response_format=response_format,
                 reasoning_effort=effort if effort in ("low", "medium", "high") else "medium",
-                max_completion_tokens=4000,
+                max_completion_tokens=_cap(schema),
             )
         except groq.RateLimitError as e:
             raise RateLimited(f"rate limited: {e.message}") from e
@@ -277,7 +293,7 @@ def _groq_agent(system, user, tools, submit, execute, final, max_tool_calls, mod
                 # Groq accepts a forced call, so once the budget is spent we force the final answer.
                 tool_choice={"type": "function", "function": {"name": SUBMIT}} if out_of_budget else "auto",
                 reasoning_effort=EFFORT if EFFORT in ("low", "medium", "high") else "medium",
-                max_completion_tokens=4000,
+                max_completion_tokens=_cap(final) + 600,
             )
         except groq.RateLimitError as e:
             raise RateLimited(f"rate limited: {e.message}") from e

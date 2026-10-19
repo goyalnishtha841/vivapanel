@@ -133,7 +133,7 @@ validates those and attaches the exact quotes. The model cannot invent evidence.
 | Professor, Engineer, moderator, scoring | `openai/gpt-oss-120b` | `claude-opus-5-5` |
 | Junior, cross-challenge checks | `openai/gpt-oss-20b` | same model |
 | Tokens per call | ~1.6–3.5k in, ~100–300 out | similar |
-| One 5-minute session | ~25–30k tokens on the big model, more with Engineer tool calls | — |
+| One 12-question session | ~53k input tokens over ~30 calls, measured with `agents.profile_tokens` (was 81k before optimisation) | — |
 | Free-tier limit | 8k tokens/min and 200k tokens/day per model | — |
 
 If the big model is rate-limited, the call moves to the small model; after a daily cap, it stays there. Switching

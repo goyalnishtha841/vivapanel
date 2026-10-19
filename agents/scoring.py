@@ -165,7 +165,7 @@ def _render_for_scorer(state: PanelState, topics: list[TopicScore]) -> str:
 
 
 def _llm_narrative(summary: ProjectSummary, state: PanelState, topics: list[TopicScore]) -> ReportNarrative:
-    system = (PROMPTS / "scorer.md").read_text() + "\n\n## Project\n" + render_summary(summary)
+    system = (PROMPTS / "scorer.md").read_text() + "\n\n## Project\n" + render_summary(summary, code=False)
     user = _render_for_scorer(state, topics) + (
         f"\n\nTopic names to use in topic_notes: {[t.topic for t in topics]}\nWrite the report narrative."
     )

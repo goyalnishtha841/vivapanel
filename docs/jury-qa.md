@@ -66,8 +66,8 @@ limit, and the container is deleted after the session. *(Member B owns this; let
 The agent's file tools refuse any path outside the repo.
 
 **Q: How long is a session and what does it cost?**
-12 questions, which took 2–5 minutes in our live runs. On Groq's free tier, about 25–30k tokens on the big model, so the cost is
-zero, but the free tier allows only about 6–8 sessions a day. On a paid tier or Claude, the code is unchanged; it's
+12 questions, which took 2–5 minutes in our live runs. On Groq's free tier, about 53k input tokens across ~30 calls (down from 81k after we optimised it), so the cost is
+zero, but the free tier allows only about 5 sessions a day (about 3 before we optimised tokens). On a paid tier or Claude, the code is unchanged; it's
 one setting.
 
 **Q: What happens when the API fails or hits a limit?**
@@ -108,7 +108,7 @@ gets *easier*, not harder, so a stuck student can still show what they know.
 | "Is the scoring validated?" | Not against human examiners yet; the weights are a reasoned first version. Calibrating with faculty is next. |
 | "Does it handle non-Python repos?" | Questions and tools work on any language; the sandbox currently targets Python and pytest. |
 | "Can a student game it?" | Pasting in a rehearsed or AI-written answer is the main risk. Follow-ups on specific lines and the Junior's "explain simply" make that hard, but not impossible. |
-| "Free-tier limits?" | Real: about 6–8 sessions a day on Groq's free tier. We built a fallback, and the code runs on a paid tier unchanged. |
+| "Free-tier limits?" | Real: about 5 sessions a day on Groq's free tier (we cut tokens per session by 35%), plus a Gemini backup. We built a fallback, and the code runs on a paid tier unchanged. |
 
 ## Future work (if asked)
 

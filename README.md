@@ -36,7 +36,7 @@ VIVA_OFFLINE=1 .venv/bin/python -m agents.cli      # scripted, no API calls
 
 Each run is logged to `runs/*.jsonl` in the shared Event format. `VIVA_DEBUG=1` prints latency and tokens per model call.
 
-**Groq free tier note:** 8,000 tokens/minute per model. A panel turn sends ~2–3k tokens, so the Junior and the cross-challenge checks run on `gpt-oss-20b` (its own budget) and the Professor/Engineer on `gpt-oss-120b`. Expect occasional 10–30 s waits on the free tier.
+**Groq free tier note:** 8,000 tokens/minute per model. A full session sends about 53k input tokens over 30 calls (measured; see docs/evidence/token-optimisation.md), so the Junior and the cross-challenge checks run on `gpt-oss-20b` (its own budget) and the Professor/Engineer on `gpt-oss-120b`. Expect occasional 10–30 s waits on the free tier.
 
 ## Evals
 

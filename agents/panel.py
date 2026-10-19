@@ -156,8 +156,9 @@ class Panel:
 
         # 2. Asker yields. A colleague may challenge that verdict before the floor moves on.
         topic_challenged = any(t.kind == "challenge" and t.topic == turn.topic for t in st.transcript)
+        # Only strong/partial verdicts are worth a second opinion; a weak answer has already been caught.
         if not out_of_time and st.challenges_used < MAX_CHALLENGES and not topic_challenged \
-                and d.verdict != "no_answer":
+                and d.verdict in ("strong", "partial"):
             challenger = self.moderator.challenger_for(turn, st.challenges_used)
             if challenger:
                 try:

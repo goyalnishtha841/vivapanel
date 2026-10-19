@@ -67,74 +67,56 @@ Verdict = Literal["strong", "partial", "weak", "no_answer", "not_applicable"]
 
 class PlannedTopic(BaseModel):
     examiner: Examiner
-    title: str = Field(description="Short label, e.g. 'Password hashing choice'.")
-    file_ref: str = Field(description="Exact repo path from the file list, optionally ':function'.")
-    why: str = Field(description="One sentence: why this is worth probing.")
+    title: str = Field(description="2–5 words.")
+    file_ref: str = Field(description="Listed path, optionally :function.")
+    why: str = Field(description="One sentence.")
 
 
 class PanelPlan(BaseModel):
-    """Moderator output: who probes what."""
+    """Moderator: who probes what."""
 
     topics: list[PlannedTopic]
 
 
 class QuestionDecision(BaseModel):
-    """An examiner opening a new topic."""
+    """Open a topic."""
 
-    file_ref: str = Field(description="Exact repo path from the file list, optionally ':function'.")
-    question: str = Field(description="The single question to ask now. Max 2 sentences, max 35 words.")
-    reasoning: str = Field(description="Why this question, in one sentence, for the reasoning sidebar.")
+    file_ref: str = Field(description="Listed path, optionally :function.")
+    question: str = Field(description="One question, ≤ 35 words.")
+    reasoning: str = Field(description="Why, one sentence.")
 
 
 class RespondDecision(BaseModel):
-    """An examiner judging the answer to its own question, then following up or yielding the floor."""
+    """Judge the answer to your question, then follow up or yield."""
 
-    verdict: Verdict = Field(description="How well the student's LAST answer matched the actual code.")
-    judgement: str = Field(description="One or two sentences comparing the answer with the code.")
-    action: Literal["follow_up", "yield"] = Field(
-        description="follow_up = one deeper question on the same topic; yield = done with this topic."
-    )
-    file_ref: str = Field(description="For follow_up: exact repo path from the file list. Empty when yielding.")
-    question: str = Field(description="For follow_up: the single question, max 2 sentences, max 35 words. Empty when yielding.")
-    reasoning: str = Field(description="Why follow up or yield, in one sentence.")
-    testable_claim: str = Field(
-        description="If the student's LAST answer claims something the project's own tests could confirm or refute "
-        "(e.g. 'my tests cover double-borrowing', 'expired tokens are rejected', 'all tests pass'), restate that "
-        "claim in one sentence. Empty string if there is no such claim."
-    )
-    test_path: str = Field(
-        description="If testable_claim is set: the test file from the file list most likely to check it. "
-        "Empty string to run the whole suite."
-    )
+    verdict: Verdict
+    judgement: str = Field(description="1–2 sentences: the answer vs the code.")
+    action: Literal["follow_up", "yield"]
+    file_ref: str = Field(description="follow_up only: listed path; else empty.")
+    question: str = Field(description="follow_up only: one question, ≤ 35 words; else empty.")
+    reasoning: str = Field(description="Why, one sentence.")
+    testable_claim: str = Field(description="A claim in the answer the project's tests could check, restated; else empty.")
+    test_path: str = Field(description="Test file most likely to check it; empty = whole suite.")
 
 
 class VerifyDecision(BaseModel):
-    """The Engineer reading a sandbox test result against the student's claim."""
+    """Read a sandbox test result against the student's claim."""
 
     outcome: Literal["supported", "contradicted", "inconclusive"] = Field(
-        description="supported = the result backs the claim; contradicted = the result disproves it; "
-        "inconclusive = the tests ran but don't actually exercise the claim, or the run errored/timed out."
+        description="inconclusive = tests don't exercise the claim, or the run failed."
     )
-    explanation: str = Field(
-        description="One sentence, max 30 words, citing the result (counts, failing test names) and what it means for the claim."
-    )
-    question: str = Field(description="One question to the student about this result. One sentence, max 25 words.")
+    explanation: str = Field(description="One sentence, ≤ 30 words, citing the result.")
+    question: str = Field(description="One question about the result, ≤ 25 words.")
 
 
 class ChallengeDecision(BaseModel):
-    """A different examiner reacting to a colleague's judgement of the last answer."""
+    """React to a colleague's verdict on the last answer."""
 
-    interject: bool = Field(description="True only if you have a substantive disagreement or a sharper angle.")
-    stance: Literal["disagree", "extend", "none"] = Field(
-        description="disagree = you think the colleague's verdict was wrong; extend = their verdict stands but "
-        "the answer misses something in your lane; none = not interjecting."
-    )
-    message: str = Field(
-        description="If interjecting: ONLY your one question to the STUDENT on the same topic, max 30 words. Do not "
-        "address your colleague — the panel adds that. Empty otherwise."
-    )
-    file_ref: str = Field(description="If interjecting: exact repo path from the file list. Empty otherwise.")
-    reasoning: str = Field(description="One sentence for the reasoning sidebar.")
+    interject: bool = Field(description="Only for a real disagreement or sharper angle.")
+    stance: Literal["disagree", "extend", "none"]
+    message: str = Field(description="If interjecting: only your question to the student, ≤ 30 words; else empty.")
+    file_ref: str = Field(description="If interjecting: listed path; else empty.")
+    reasoning: str = Field(description="One sentence.")
 
 
 class Turn(BaseModel):

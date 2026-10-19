@@ -75,6 +75,7 @@ def _file_key(file_ref: str | None) -> str | None:
 
 def run(persona: str) -> dict:
     summary = SUMMARY if persona != "large" else large_summary()
+    llm.USAGE.clear()
     panel = Panel(summary, run_tests=mock_test_runner(), repo_tools=mock_repo_tools())
     events, checks, seen = [], [], {}
     t0 = time.time()
@@ -108,7 +109,12 @@ def run(persona: str) -> dict:
         i += 1
 
     report = build_report(summary, panel.state)
+    usage = {"calls": len(llm.USAGE), "input": sum(u["input"] for u in llm.USAGE),
+             "output": sum(u["output"] for u in llm.USAGE),
+             "by_model": {m: sum(u["input"] + u["output"] for u in llm.USAGE if u["model"] == m)
+                          for m in {u["model"] for u in llm.USAGE}}}
     out = {
+        "usage": usage,
         "report": json.loads(report.model_dump_json()), "report_md": report_to_markdown(report),
         "persona": persona, "mode": "offline" if llm.is_offline() else f"{llm.PROVIDER}:{llm.MODEL}",
         "seconds": round(time.time() - t0), "metrics": metrics(events, summary), "checks": checks, "events": events,
@@ -141,6 +147,8 @@ def main() -> int:
     path = runs / f"eval-{persona}-{datetime.now():%H%M%S}.json"
     path.write_text(json.dumps(out, indent=1))
     print(f"\nreport: {out['report']['overall_score']}/100 {out['report']['readiness']} — {out['report']['headline']}")
+    u = out["usage"]
+    print(f"\ntokens (provider-reported): {u['input']:,} in + {u['output']:,} out over {u['calls']} calls; by model {u['by_model']}")
     print(f"\n{persona} ({out['mode']}, {out['seconds']}s): {json.dumps(out['metrics'])}")
     for c in out["checks"]:
         print(f"  {'PASS' if c['ok'] else 'FAIL'}  {c['kind']:<10} -> {c['verdict']:<10} {c['answer']!r}")
