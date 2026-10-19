@@ -1,8 +1,13 @@
 """Thin wrapper around the LLM so every agent calls the model the same way.
 
-Providers (VIVA_PROVIDER):
-  anthropic  — Claude via the Anthropic SDK (default)
-  groq       — Groq-hosted open models via the Groq SDK
+Providers: groq (Groq-hosted open models), gemini (Google), anthropic (Claude).
+VIVA_PROVIDER picks the primary; VIVA_BACKUP_PROVIDER (default: gemini, if GEMINI_API_KEY is set) is used
+when the primary is rate-limited or overloaded. Each call walks a chain of (provider, model) routes:
+
+    big call:  primary big  -> primary fast -> backup big -> backup fast
+    fast call: primary fast -> backup fast  -> backup big
+
+A route that hits a *daily* cap is skipped for the rest of the process.
 """
 from __future__ import annotations
 
@@ -18,30 +23,32 @@ from pydantic import BaseModel, ValidationError
 
 load_dotenv()
 
+MODELS = {  # provider -> (big model, fast model)
+    "groq": (os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-20b")),
+    "gemini": (os.getenv("GEMINI_MODEL", "gemini-flash-latest"), os.getenv("GEMINI_FAST_MODEL", "gemini-flash-lite-latest")),
+    "anthropic": (os.getenv("VIVA_MODEL", "claude-opus-5-5"), os.getenv("VIVA_FAST_MODEL", os.getenv("VIVA_MODEL", "claude-opus-5-5"))),
+}
+KEYS = {"groq": ("GROQ_API_KEY",), "gemini": ("GEMINI_API_KEY",), "anthropic": ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+
 PROVIDER = os.getenv("VIVA_PROVIDER", "anthropic").lower()
-MODEL = (
-    os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-    if PROVIDER == "groq"
-    else os.getenv("VIVA_MODEL", "claude-opus-5-5")
-)
-# Smaller model for cheap side decisions (e.g. "should I interject?"). Has its own rate limit on Groq.
-FAST_MODEL = (
-    os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-20b")
-    if PROVIDER == "groq"
-    else os.getenv("VIVA_FAST_MODEL", MODEL)
-)
+BACKUP = os.getenv("VIVA_BACKUP_PROVIDER", "gemini" if os.getenv("GEMINI_API_KEY") else "").lower()
+if BACKUP == PROVIDER:
+    BACKUP = ""
+MODEL, FAST_MODEL = MODELS.get(PROVIDER, MODELS["anthropic"])
 EFFORT = os.getenv("VIVA_EFFORT", "low")  # low keeps viva turns snappy; raise for scoring
 
 T = TypeVar("T", bound=BaseModel)
 
 
+def _has_key(provider: str) -> bool:
+    return any(os.getenv(k) for k in KEYS.get(provider, ()))
+
+
 def is_offline() -> bool:
-    """Offline when forced, or when the chosen provider has no credentials."""
+    """Offline when forced, or when neither the primary nor the backup provider has credentials."""
     if os.getenv("VIVA_OFFLINE", "0") == "1":
         return True
-    if PROVIDER == "groq":
-        return not os.getenv("GROQ_API_KEY")
-    return not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN"))
+    return not (_has_key(PROVIDER) or (BACKUP and _has_key(BACKUP)))
 
 
 class LLMError(RuntimeError):
@@ -49,11 +56,11 @@ class LLMError(RuntimeError):
 
 
 class RateLimited(LLMError):
-    pass
+    """Rate-limited or overloaded: worth trying the next route."""
 
 
 DEBUG = os.getenv("VIVA_DEBUG", "0") == "1"
-_big_model_exhausted = False
+_exhausted: set[tuple[str, str]] = set()  # routes that hit a daily cap
 
 # Output caps per call type (Groq counts hidden reasoning in these too). Generous enough to never cut a
 # valid decision short, tight enough that a runaway answer can't burn the budget.
@@ -69,30 +76,58 @@ def _cap(schema: type) -> int:
 # Read it (and reset it) to measure a session; see agents/profile_tokens.py.
 USAGE: list[dict] = []
 
+
 def _log(model: str, schema: type, started: float, tokens_in: int, tokens_out: int) -> None:
     USAGE.append({"call": schema.__name__, "model": model, "input": tokens_in, "output": tokens_out,
                   "seconds": round(time.time() - started, 2)})
     if DEBUG:
-        print(f"  [llm] {schema.__name__:<17} {model:<22} {time.time() - started:5.1f}s "
+        print(f"  [llm] {schema.__name__:<17} {model:<26} {time.time() - started:5.1f}s "
               f"in={tokens_in} out={tokens_out}", file=sys.stderr)
 
 
+def routes(fast: bool) -> list[tuple[str, str]]:
+    """The (provider, model) order to try for one call, skipping routes without a key or past a daily cap."""
+    chain: list[tuple[str, str]] = []
+    for prov in [PROVIDER] + ([BACKUP] if BACKUP else []):
+        if not _has_key(prov):
+            continue
+        big, small = MODELS[prov]
+        if not fast:
+            chain += [(prov, big), (prov, small)]
+        elif prov == PROVIDER:
+            chain += [(prov, small)]
+        else:
+            chain += [(prov, small), (prov, big)]
+    return [r for i, r in enumerate(chain) if r not in chain[:i] and r not in _exhausted]
+
+
+def _daily(err: Exception) -> bool:
+    t = str(err)
+    return any(k in t for k in ("per day", "TPD", "PerDay", "per_day", "daily"))
+
+
+def _walk(fn: Callable[[str, str], T], fast: bool) -> T:
+    chain = routes(fast)
+    if not chain:
+        raise RateLimited("every model's daily limit is used up")
+    last: Exception | None = None
+    for i, (prov, model) in enumerate(chain):
+        try:
+            return fn(prov, model)
+        except RateLimited as e:
+            last = e
+            if _daily(e):
+                _exhausted.add((prov, model))
+            if i + 1 < len(chain):
+                print(f"  [llm] {prov}:{model} unavailable ({str(e)[:90]}), trying {chain[i + 1][0]}:{chain[i + 1][1]}",
+                      file=sys.stderr)
+    raise last
+
+
 def structured_call(system: str, user: str, schema: type[T], effort: str | None = None, fast: bool = False) -> T:
-    """One model call that must return an instance of `schema`. fast=True uses the smaller model."""
-    global _big_model_exhausted
-    model = FAST_MODEL if fast or _big_model_exhausted else MODEL
-    call = _groq_call if PROVIDER == "groq" else _anthropic_call
-    try:
-        return call(system, user, schema, effort or EFFORT, model)
-    except RateLimited as e:
-        # The big model's budget is spent (e.g. Groq's daily token cap): finish the turn on the fast model
-        # rather than stalling the viva. It has its own, separate budget.
-        if model == FAST_MODEL:
-            raise
-        if "per day" in str(e) or "TPD" in str(e):
-            _big_model_exhausted = True  # daily cap: stop trying the big model for the rest of this process
-        print(f"  [llm] {model} rate-limited, falling back to {FAST_MODEL}: {str(e)[:120]}", file=sys.stderr)
-        return call(system, user, schema, effort or EFFORT, FAST_MODEL)
+    """One model call that must return an instance of `schema`. fast=True prefers the smaller model."""
+    calls = {"groq": _groq_call, "gemini": _gemini_call, "anthropic": _anthropic_call}
+    return _walk(lambda prov, model: calls[prov](system, user, schema, effort or EFFORT, model), fast)
 
 
 # ---------- Anthropic ----------
@@ -242,20 +277,23 @@ SUBMIT = "submit"
 
 def agent_loop(system: str, user: str, tools: list[Tool], execute: Callable[[str, dict], dict], final: type[T],
                max_tool_calls: int = 3, fast: bool = False) -> Generator[ToolCall, None, T]:
-    global _big_model_exhausted
-    model = FAST_MODEL if fast or _big_model_exhausted else MODEL
     submit = Tool(SUBMIT, f"Submit your final {final.__name__}. Call this exactly once, when you are done "
                           "investigating.", _strict_schema(final))
-    loop = _groq_agent if PROVIDER == "groq" else _anthropic_agent
-    try:
-        return (yield from loop(system, user, tools, submit, execute, final, max_tool_calls, model))
-    except RateLimited as e:
-        if model == FAST_MODEL:
-            raise
-        if "per day" in str(e) or "TPD" in str(e):
-            _big_model_exhausted = True
-        print(f"  [llm] {model} rate-limited in agent loop, restarting on {FAST_MODEL}", file=sys.stderr)
-        return (yield from loop(system, user, tools, submit, execute, final, max_tool_calls, FAST_MODEL))
+    loops = {"groq": _groq_agent, "gemini": _gemini_agent, "anthropic": _anthropic_agent}
+    chain = routes(fast)
+    if not chain:
+        raise RateLimited("every model's daily limit is used up")
+    for i, (prov, model) in enumerate(chain):
+        try:
+            # a fallback restarts the investigation on the next route (tool calls are cheap and repeatable)
+            return (yield from loops[prov](system, user, tools, submit, execute, final, max_tool_calls, model))
+        except RateLimited as e:
+            if _daily(e):
+                _exhausted.add((prov, model))
+            if i + 1 == len(chain):
+                raise
+            print(f"  [llm] {prov}:{model} unavailable in agent loop, trying {chain[i + 1][0]}:{chain[i + 1][1]}",
+                  file=sys.stderr)
 
 
 def _run_tool(execute, name: str, args: dict) -> dict:
@@ -403,3 +441,120 @@ def _anthropic_agent(system, user, tools, submit, execute, final, max_tool_calls
             results.append({"type": "tool_result", "tool_use_id": b.id, "is_error": is_error,
                             "content": json.dumps(result)[:6000] + " " + _budget_note(used, max_tool_calls)})
         messages.append({"role": "user", "content": results})
+
+
+# ---------- Gemini ----------
+
+_gemini = None
+
+
+def _gemini_client():
+    global _gemini
+    if _gemini is None:
+        from google import genai
+        _gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return _gemini
+
+
+def _gemini_errors(e: Exception) -> LLMError:
+    from google.genai import errors
+    if isinstance(e, errors.APIError):
+        if e.code == 429 or (isinstance(e, errors.ServerError) and e.code in (500, 503, 504)):
+            return RateLimited(f"gemini {e.code}: {e.message}")
+        return LLMError(f"gemini {e.code}: {e.message}")
+    return LLMError(f"gemini: {type(e).__name__}: {e}")
+
+
+def _gemini_config(system: str, max_out: int, **extra):
+    from google.genai import types
+    return types.GenerateContentConfig(
+        system_instruction=system,
+        max_output_tokens=max_out + 1500,  # room for the model's own thinking
+        thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),
+        **extra,
+    )
+
+
+def _gemini_usage(model: str, schema: type, started: float, r) -> None:
+    u = r.usage_metadata
+    if u:
+        _log(model, schema, started, u.prompt_token_count or 0, (u.candidates_token_count or 0) + (u.thoughts_token_count or 0))
+
+
+def _gemini_call(system: str, user: str, schema: type[T], effort: str, model: str) -> T:
+    from google.genai import types
+    contents = [types.Content(role="user", parts=[types.Part(text=user)])]
+    config = _gemini_config(system, _cap(schema), response_mime_type="application/json",
+                            response_json_schema=_strict_schema(schema))
+    for attempt in range(2):
+        started = time.time()
+        try:
+            r = _gemini_client().models.generate_content(model=model, contents=contents, config=config)
+        except Exception as e:
+            raise _gemini_errors(e) from e
+        _gemini_usage(model, schema, started, r)
+        text = r.text or ""
+        try:
+            return schema.model_validate(json.loads(text))
+        except (json.JSONDecodeError, ValidationError) as e:
+            if attempt == 1:
+                reason = r.candidates[0].finish_reason if r.candidates else "?"
+                raise LLMError(f"invalid structured output from gemini (finish_reason={reason}): {e}") from e
+            contents = contents + [types.Content(role="model", parts=[types.Part(text=text)]),
+                                   types.Content(role="user", parts=[types.Part(text=f"That was not valid JSON for the schema: {e}. Reply again with only the JSON.")])]
+    raise LLMError("unreachable")
+
+
+def _gemini_agent(system, user, tools, submit, execute, final, max_tool_calls, model):
+    from google.genai import types
+
+    def declare(ts):
+        return [types.Tool(function_declarations=[
+            types.FunctionDeclaration(name=t.name, description=t.description, parameters_json_schema=t.parameters)
+            for t in ts])]
+
+    contents = [types.Content(role="user", parts=[types.Part(text=user)])]
+    used, nudges = 0, 0
+    while True:
+        out_of_budget = used >= max_tool_calls
+        available = [submit] if out_of_budget else tools + [submit]
+        config = _gemini_config(
+            system, _cap(final), tools=declare(available),
+            # Gemini can be made to always call a function; once the budget is spent, only `submit` is allowed.
+            tool_config=types.ToolConfig(function_calling_config=types.FunctionCallingConfig(
+                mode=types.FunctionCallingConfigMode.ANY, allowed_function_names=[t.name for t in available])),
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        )
+        started = time.time()
+        try:
+            r = _gemini_client().models.generate_content(model=model, contents=contents, config=config)
+        except Exception as e:
+            raise _gemini_errors(e) from e
+        _gemini_usage(model, final, started, r)
+        calls = r.function_calls or []
+        if not calls:
+            nudges += 1
+            if nudges > 3:
+                raise LLMError("agent never submitted a decision")
+            contents.append(types.Content(role="user", parts=[types.Part(text="Use a tool, or call `submit` with your final decision.")]))
+            continue
+        contents.append(r.candidates[0].content)  # keep the model's turn as-is (it carries Gemini's thought signatures)
+        responses = []
+        for c in calls:
+            args = dict(c.args or {})
+            if c.name == SUBMIT:
+                try:
+                    return final.model_validate(args)
+                except ValidationError as e:
+                    result = {"error": f"invalid decision: {e}. Call submit again with valid arguments."}
+            elif used >= max_tool_calls or c.name not in {t.name for t in tools}:
+                result = {"error": "tool not available now — call submit"}
+            else:
+                used += 1
+                yield ToolCall(c.name, args)
+                result = _run_tool(execute, c.name, args)
+                yield ToolCall(c.name, args, result)
+            payload = json.loads(json.dumps(result)[:6000]) if len(json.dumps(result)) <= 6000 else {"truncated": json.dumps(result)[:6000]}
+            payload["note"] = _budget_note(used, max_tool_calls)
+            responses.append(types.Part.from_function_response(name=c.name, response=payload))
+        contents.append(types.Content(role="user", parts=responses))
