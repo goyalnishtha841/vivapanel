@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RGB triplets so Tailwind opacity modifiers (bg-brand/20) work. */
+:root {
+  /* light: for projectors and daylight */
+  --bg: 247 246 251;
+  --surface: 255 255 255;
+  --raised: 239 237 247;
+  --line: 224 221 236;
+  --ink: 17 16 33;
+  --muted: 96 94 122;
+  --brand: 104 84 230;   /* violet */
+  --prof: 190 118 0;     /* amber — the Professor */
+  --eng: 0 150 128;      /* teal — the Engineer */
+  --jun: 214 64 138;     /* pink — the Junior */
+  --good: 0 150 100;
+  --warn: 190 118 0;
+  --bad: 214 70 58;
+}
+
+.dark {
+  --bg: 11 11 20;        /* #0B0B14 */
+  --surface: 19 19 33;
+  --raised: 27 27 46;
+  --line: 40 40 64;
+  --ink: 236 235 248;
+  --muted: 150 148 180;
+  --brand: 155 140 255;  /* #9B8CFF */
+  --prof: 255 181 71;    /* #FFB547 */
+  --eng: 46 230 197;     /* #2EE6C5 */
+  --jun: 255 122 182;    /* #FF7AB6 */
+  --good: 46 230 150;
+  --warn: 255 181 71;
+  --bad: 255 107 90;
+}
+
+* { border-color: rgb(var(--line)); }
+html { scroll-behavior: smooth; color-scheme: light; }
+html.dark { color-scheme: dark; }
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  font-family: "Outfit", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: rgb(var(--brand) / 0.25); }
+
+.code-chip {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.82em;
+}
+
+@keyframes caret { 50% { opacity: 0; } }
+.caret::after { content: "▍"; margin-left: 2px; animation: caret 1s steps(1) infinite; color: rgb(var(--brand)); }
+
+@keyframes wave { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  * { opacity: 1 !important; transform: none !important; }
+  section { break-inside: avoid; }
+}
