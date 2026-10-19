@@ -1,0 +1,67 @@
+{
+  "repo_url": "https://github.com/example-student/campus-library-api",
+  "name": "campus-library-api",
+  "one_liner": "A FastAPI + SQLite REST API for a college library: students sign up, search books, borrow and return them; librarians manage inventory.",
+  "tech_stack": ["Python 3.11", "FastAPI", "SQLite (sqlite3 module)", "PyJWT", "pytest"],
+  "readme_claims": [
+    "Secure JWT-based authentication",
+    "Scalable to thousands of concurrent students",
+    "Prevents double-borrowing of the same copy",
+    "Fine is calculated automatically for late returns",
+    "90%+ test coverage"
+  ],
+  "files": [
+    "README.md",
+    "requirements.txt",
+    "app/main.py",
+    "app/db.py",
+    "app/auth.py",
+    "app/models.py",
+    "app/routes/books.py",
+    "app/routes/loans.py",
+    "app/services/fines.py",
+    "tests/test_auth.py",
+    "tests/test_loans.py",
+    "tests/test_fines.py"
+  ],
+  "key_files": [
+    {
+      "path": "app/db.py",
+      "purpose": "Opens SQLite connections and creates tables on startup.",
+      "functions": ["get_connection", "init_db"],
+      "snippet": "DB_PATH = 'library.db'\n\ndef get_connection():\n    conn = sqlite3.connect(DB_PATH)\n    conn.row_factory = sqlite3.Row\n    return conn\n\ndef init_db():\n    conn = get_connection()\n    conn.executescript(open('schema.sql').read())\n    conn.commit()"
+    },
+    {
+      "path": "app/auth.py",
+      "purpose": "Password hashing, JWT creation and the current-user dependency.",
+      "functions": ["hash_password", "verify_password", "create_token", "get_current_user"],
+      "snippet": "SECRET_KEY = 'library-secret-123'\n\ndef hash_password(pw: str) -> str:\n    return hashlib.sha256(pw.encode()).hexdigest()\n\ndef create_token(user_id: int, role: str) -> str:\n    payload = {'sub': user_id, 'role': role, 'exp': datetime.utcnow() + timedelta(days=30)}\n    return jwt.encode(payload, SECRET_KEY, algorithm='HS256')\n\ndef get_current_user(token: str = Depends(oauth2_scheme)):\n    data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])\n    return data"
+    },
+    {
+      "path": "app/routes/loans.py",
+      "purpose": "Borrow and return endpoints.",
+      "functions": ["borrow_book", "return_book"],
+      "snippet": "@router.post('/borrow/{copy_id}')\ndef borrow_book(copy_id: int, user=Depends(get_current_user)):\n    conn = get_connection()\n    row = conn.execute('SELECT available FROM copies WHERE id=?', (copy_id,)).fetchone()\n    if not row['available']:\n        raise HTTPException(409, 'Already borrowed')\n    conn.execute('UPDATE copies SET available=0 WHERE id=?', (copy_id,))\n    conn.execute('INSERT INTO loans(user_id, copy_id, due) VALUES (?,?,?)', (user['sub'], copy_id, due_date()))\n    conn.commit()\n    return {'status': 'borrowed'}"
+    },
+    {
+      "path": "app/routes/books.py",
+      "purpose": "Search and list books.",
+      "functions": ["search_books", "list_books"],
+      "snippet": "@router.get('/books/search')\ndef search_books(q: str):\n    conn = get_connection()\n    rows = conn.execute(f\"SELECT * FROM books WHERE title LIKE '%{q}%'\").fetchall()\n    return [dict(r) for r in rows]\n\n@router.get('/books')\ndef list_books():\n    return [dict(r) for r in get_connection().execute('SELECT * FROM books').fetchall()]"
+    },
+    {
+      "path": "app/services/fines.py",
+      "purpose": "Late-return fine calculation.",
+      "functions": ["calculate_fine"],
+      "snippet": "FINE_PER_DAY = 5  # rupees\nMAX_FINE = 500\n\ndef calculate_fine(due: date, returned: date) -> int:\n    days_late = (returned - due).days\n    return min(days_late * FINE_PER_DAY, MAX_FINE)"
+    },
+    {
+      "path": "tests/test_loans.py",
+      "purpose": "Tests for borrow/return.",
+      "functions": ["test_borrow_available_copy", "test_borrow_twice_returns_409"],
+      "snippet": "def test_borrow_twice_returns_409(client, token):\n    client.post('/borrow/1', headers=auth(token))\n    r = client.post('/borrow/1', headers=auth(token))\n    assert r.status_code == 409"
+    }
+  ],
+  "has_tests": true,
+  "test_command": "pytest -q"
+}
