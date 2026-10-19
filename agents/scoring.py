@@ -59,6 +59,7 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
         weak_spots=weak_spots,
         unanswered=_unanswered(transcript),
         test_evidence=state.verifications,
+        code_checks=state.tool_calls,
         study_plan=[
             StudyStep(title=s.title, action=s.action, minutes=max(5, min(s.minutes, 180)),
                       file_ref=s.file_ref if file_ref_exists(s.file_ref, summary) else None)
@@ -151,6 +152,11 @@ def _render_for_scorer(state: PanelState, topics: list[TopicScore]) -> str:
         r = v.result
         lines.append(f"After A{v.turn}: claim \"{v.claim}\" → ran `{r.command}`: {r.status}, {r.passed} passed, "
                      f"{r.failed} failed {r.failing_tests} → {v.outcome}: {v.explanation}")
+    lines.append("\n## Code checks the Engineer made (tool calls)")
+    if not state.tool_calls:
+        lines.append("(none)")
+    for c in state.tool_calls:
+        lines.append(f"While judging A{c.turn}: {c.tool}({c.args}) → {c.summary}")
     lines.append("\n## Topic confidence (computed from verdicts)")
     for t in topics:
         lines.append(f"- {t.topic} ({DISPLAY[t.examiner]}): "
@@ -223,6 +229,12 @@ def report_to_markdown(r: Report) -> str:
                    f"{res.passed} passed / {res.failed} failed"
                    + (f" ({', '.join(res.failing_tests)})" if res.failing_tests else "")
                    + f"\n  - **{v.outcome.upper()}** — {v.explanation}")
+    out.append("\n## Code checks by the Engineer")
+    if not r.code_checks:
+        out.append("None in this session.")
+    for c in r.code_checks:
+        args = ", ".join(f"{k}={v!r}" for k, v in c.args.items())
+        out.append(f"- A{c.turn}: `{c.tool}({args})` → {c.summary}")
     out.append("\n## Unanswered questions")
     if not r.unanswered:
         out.append("None.")

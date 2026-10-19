@@ -163,13 +163,110 @@ class Examiner:
                 default_ref=last.file_ref or fallback_ref(self.summary),
                 question_of=lambda d: d.question if d.action == "follow_up" else None, earlier=_asked(transcript),
             )
+        return self._finish_respond(d, follow_ups_used, last)
+
+    def _finish_respond(self, d: RespondDecision, follow_ups_used: int, last: Turn) -> RespondDecision:
         if d.test_path and d.test_path not in self._test_files():
             d = d.model_copy(update={"test_path": ""})  # guardrail: unknown test file -> run the whole suite
         if follow_ups_used >= MAX_FOLLOW_UPS and d.action == "follow_up":
             d = d.model_copy(update={"action": "yield", "question": "", "file_ref": ""})
         if d.action == "follow_up":
+            if ref_problem(d.file_ref, self.summary):
+                path = split_ref(d.file_ref)[0]
+                d = d.model_copy(update={"file_ref": path if path in self.summary.files else (last.file_ref or fallback_ref(self.summary))})
             d = d.model_copy(update={"question": ensure_question_cites(d.question, d.file_ref)})
         return d
+
+    # ---------- agentic moves (Engineer with tools) ----------
+
+    def respond_agentic(self, transcript: list[Turn], follow_ups_used: int, repo, note: str | None = None):
+        """Like respond(), but the examiner may read and search the repo before judging.
+
+        Generator: yields llm.ToolCall as they happen, returns the RespondDecision.
+        """
+        last = transcript[-1]
+        if llm.is_offline():
+            func = split_ref(last.file_ref or "")[1]
+            if func:
+                args = {"query": func, "why": f"Checking how `{func}` is actually used."}
+                yield llm.ToolCall("search_code", args)
+                yield llm.ToolCall("search_code", args, repo.search_code(func))
+            return self.respond(transcript, follow_ups_used, note)
+        limit = ("You have used the follow-up limit on this topic — you MUST yield."
+                 if follow_ups_used >= MAX_FOLLOW_UPS
+                 else f"Follow-ups used on this topic: {follow_ups_used} of {MAX_FOLLOW_UPS}.")
+        user = (
+            f"## Panel transcript\n{render_transcript(transcript)}\n\n"
+            f"## Your turn\nThe student just answered YOUR question Q{len(transcript)}. Judge that answer against the "
+            "ACTUAL code. The summary above only shows snippets: if the student mentions code you can't see there "
+            "(\"I close the connection in teardown\", \"there's a lock around that\"), use `search_code` or "
+            "`read_file` to check before you judge. Don't use tools when the snippets already settle it.\n\n"
+            f"Then call `submit`: verdict and judgement (cite what you found), and either follow_up with one narrower "
+            f"question or yield. {limit}\n"
+            "If the answer makes a claim the project's own tests could confirm or refute, fill testable_claim and "
+            f"test_path (one of {json.dumps(self._test_files())}, or empty for the whole suite)."
+            + (f"\n\n**Note from the panel's answer check:** {note}" if note else "")
+        )
+        tools = [READ_FILE, SEARCH_CODE]
+        try:
+            d = yield from llm.agent_loop(self.system, user, tools, _executor(repo, None), RespondDecision,
+                                          max_tool_calls=AGENT_TOOL_CALLS, fast=self.fast)
+        except llm.RateLimited:
+            raise
+        except llm.LLMError:
+            return self.respond(transcript, follow_ups_used, note)  # tool loop broke: judge without tools
+        return self._finish_respond(d, follow_ups_used, last)
+
+    def verify_agentic(self, transcript: list[Turn], claim: str, test_path: str | None, repo, run_tests):
+        """Check a student's claim: the Engineer decides what to run and read, then judges.
+
+        Generator: yields llm.ToolCall, returns (VerifyDecision, RunTestsResult). Code guarantees the tests run:
+        if the agent never calls run_tests, they are run for it and judged without tools.
+        """
+        holder: dict = {}
+        tests = self._test_files()
+        sandbox = run_tests
+
+        def safe_run(p: str | None):  # only real test files reach the sandbox
+            return sandbox(p if p in tests else None)
+
+        if llm.is_offline():
+            args = {"test_path": test_path or "", "why": "Checking the claim against the project's tests."}
+            yield llm.ToolCall("run_tests", args)
+            result = safe_run(test_path)
+            yield llm.ToolCall("run_tests", args, result.model_dump())
+            if test_path:
+                rargs = {"path": test_path, "why": "Checking what these tests actually exercise."}
+                yield llm.ToolCall("read_file", rargs)
+                yield llm.ToolCall("read_file", rargs, repo.read_file(test_path))
+            return _offline_verify(claim, result), result
+        user = (
+            f"## Panel transcript\n{render_transcript(transcript)}\n\n"
+            f"## Your turn\nThe student just claimed: \"{claim}\"\n"
+            f"Suggested test file: {test_path or '(whole suite)'}. Test files: {json.dumps(self._test_files())}.\n\n"
+            "Verify the claim like a careful engineer: call `run_tests` (once) on the most relevant tests, and read "
+            "the test file if you need to know whether those tests actually exercise the claim — passing tests only "
+            "support a claim they test (borrowing twice in sequence says nothing about two requests at the same "
+            "moment). Then call `submit` with the outcome, a one-sentence explanation citing what you ran or read, "
+            "and one question for the student."
+        )
+        tools = [RUN_TESTS, READ_FILE, SEARCH_CODE]
+        try:
+            d = yield from llm.agent_loop(self.system, user, tools, _executor(repo, safe_run, holder), VerifyDecision,
+                                          max_tool_calls=AGENT_TOOL_CALLS, fast=self.fast)
+        except llm.RateLimited:
+            raise
+        except llm.LLMError:
+            d = None  # tool loop broke: fall through and judge the real result without tools
+        if d is None and "result" in holder:
+            d = self.verify(transcript, claim, holder["result"])
+        if "result" not in holder:  # the agent skipped the sandbox: run it and judge the real result
+            args = {"test_path": test_path or "", "why": "Checking the claim against the project's tests."}
+            yield llm.ToolCall("run_tests", args)
+            holder["result"] = safe_run(test_path)
+            yield llm.ToolCall("run_tests", args, holder["result"].model_dump())
+            d = self.verify(transcript, claim, holder["result"])
+        return d, holder["result"]
 
     def rephrase(self, transcript: list[Turn]) -> QuestionDecision:
         """The student asked for clarification: ask the same thing more simply. Not graded."""
@@ -386,3 +483,45 @@ def strip_address(message: str) -> str:
                  re.IGNORECASE)
     out = message[m.end():] if m else message
     return out[:1].upper() + out[1:]
+
+
+# ---------- tools the Engineer can call ----------
+
+AGENT_TOOL_CALLS = int(os.getenv("VIVA_AGENT_TOOL_CALLS", "3"))
+_WHY = {"type": "string", "description": "One short sentence: what you are checking and why (shown to the student)."}
+
+READ_FILE = llm.Tool(
+    "read_file", "Read a file from the student's repository (with line numbers). Use paths from the file list.",
+    {"type": "object", "properties": {"path": {"type": "string"}, "start_line": {"type": "integer"}, "why": _WHY},
+     "required": ["path", "why"]},
+)
+SEARCH_CODE = llm.Tool(
+    "search_code", "Case-insensitive text search across the repository. Returns matching lines with file and line "
+    "number. Use it to check whether something the student mentions actually exists in the code.",
+    {"type": "object", "properties": {"query": {"type": "string"}, "why": _WHY}, "required": ["query", "why"]},
+)
+RUN_TESTS = llm.Tool(
+    "run_tests", "Run the project's tests in an isolated sandbox (no network, time and memory limits). Returns "
+    "pass/fail counts, failing test names and the output tail. Can be called once per session.",
+    {"type": "object", "properties": {
+        "test_path": {"type": "string", "description": "A test file from the file list, or empty for the whole suite."},
+        "why": _WHY}, "required": ["test_path", "why"]},
+)
+
+
+def _executor(repo, run_tests, holder: dict | None = None):
+    def execute(name: str, args: dict) -> dict:
+        if name == "read_file":
+            return repo.read_file(str(args.get("path", "")), start_line=int(args.get("start_line") or 1))
+        if name == "search_code":
+            return repo.search_code(str(args.get("query", "")))
+        if name == "run_tests" and run_tests is not None:
+            if holder is not None and "result" in holder:
+                return {"error": "tests already ran this session", "previous": holder["result"].model_dump()}
+            path = str(args.get("test_path") or "") or None
+            result = run_tests(path)
+            if holder is not None:
+                holder["result"] = result
+            return result.model_dump()
+        return {"error": f"unknown tool {name}"}
+    return execute

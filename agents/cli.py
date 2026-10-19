@@ -21,7 +21,7 @@ from .moderator import ORDER
 from .panel import Panel
 from .schemas import Event, ProjectSummary
 from .scoring import build_report, report_to_markdown
-from .tools import mock_test_runner
+from .tools import mock_repo_tools, mock_test_runner
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SUMMARY = Path(__file__).parent / "mock_data" / "mock_summary.json"
@@ -50,7 +50,8 @@ def main() -> int:
     summary = ProjectSummary.model_validate_json(args.summary.read_text())
     tests = args.tests or ("mock" if args.summary == DEFAULT_SUMMARY else "none")
     panel = Panel(summary, examiners=(args.only,) if args.only else ORDER,
-                  run_tests=mock_test_runner() if tests == "mock" else None)
+                  run_tests=mock_test_runner() if tests == "mock" else None,
+                  repo_tools=mock_repo_tools() if args.summary == DEFAULT_SUMMARY else None)
 
     runs = ROOT / "runs"
     runs.mkdir(exist_ok=True)

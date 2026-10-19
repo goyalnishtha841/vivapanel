@@ -174,6 +174,16 @@ class Verification(BaseModel):
     explanation: str
 
 
+class ToolRecord(BaseModel):
+    """One tool call an agent made, kept as evidence."""
+
+    turn: int = Field(description="1-based transcript turn being judged when the call was made.")
+    examiner: Examiner
+    tool: ToolName
+    args: dict
+    summary: str
+
+
 # ---- Report (GET /report/{id}) ----
 
 class Quote(BaseModel):
@@ -224,6 +234,7 @@ class Report(BaseModel):
     weak_spots: list[WeakSpot]
     unanswered: list[UnansweredQuestion]
     test_evidence: list[Verification]
+    code_checks: list[ToolRecord] = []
     study_plan: list[StudyStep]
     recruiter_summary: str
     questions_asked: int

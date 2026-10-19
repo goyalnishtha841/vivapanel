@@ -192,3 +192,198 @@ def _groq_call(system: str, user: str, schema: type[T], effort: str, model: str)
                 {"role": "user", "content": f"That was not valid JSON for the schema: {e}. Reply again with only the JSON."},
             ]
     raise LLMError("unreachable")
+
+
+# ---------- Tool-calling agent loop ----------
+#
+# The model chooses which tools to call, reads each result, and decides what to do next, until it calls the
+# `submit` tool whose arguments are the final decision (validated against a Pydantic schema). Each tool call is
+# yielded as it happens so the panel can stream it; the final decision is the generator's return value:
+#
+#     decision = yield from agent_loop(system, user, tools, execute, RespondDecision)
+
+from collections.abc import Callable, Generator  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+
+
+@dataclass
+class Tool:
+    name: str
+    description: str
+    parameters: dict[str, Any]  # JSON schema for the arguments
+
+
+@dataclass
+class ToolCall:
+    """Yielded twice per call: once before it runs (result=None), once with the result."""
+    name: str
+    args: dict[str, Any]
+    result: dict[str, Any] | None = None
+
+
+SUBMIT = "submit"
+
+
+def agent_loop(system: str, user: str, tools: list[Tool], execute: Callable[[str, dict], dict], final: type[T],
+               max_tool_calls: int = 3, fast: bool = False) -> Generator[ToolCall, None, T]:
+    global _big_model_exhausted
+    model = FAST_MODEL if fast or _big_model_exhausted else MODEL
+    submit = Tool(SUBMIT, f"Submit your final {final.__name__}. Call this exactly once, when you are done "
+                          "investigating.", _strict_schema(final))
+    loop = _groq_agent if PROVIDER == "groq" else _anthropic_agent
+    try:
+        return (yield from loop(system, user, tools, submit, execute, final, max_tool_calls, model))
+    except RateLimited as e:
+        if model == FAST_MODEL:
+            raise
+        if "per day" in str(e) or "TPD" in str(e):
+            _big_model_exhausted = True
+        print(f"  [llm] {model} rate-limited in agent loop, restarting on {FAST_MODEL}", file=sys.stderr)
+        return (yield from loop(system, user, tools, submit, execute, final, max_tool_calls, FAST_MODEL))
+
+
+def _run_tool(execute, name: str, args: dict) -> dict:
+    try:
+        return execute(name, args)
+    except Exception as e:  # a broken tool must not take the viva down; the model sees the error
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _budget_note(used: int, limit: int) -> str:
+    left = limit - used
+    return (f"(tool calls left: {left})" if left > 0
+            else "(no tool calls left — call `submit` now with your final decision)")
+
+
+def _groq_agent(system, user, tools, submit, execute, final, max_tool_calls, model):
+    import groq
+
+    global _groq
+    if _groq is None:
+        _groq = groq.Groq(max_retries=3, timeout=60.0)
+
+    def spec(t: Tool) -> dict:
+        return {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
+
+    messages: list[dict] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    used, failures = 0, 0
+    while True:
+        out_of_budget = used >= max_tool_calls
+        available = [submit] if out_of_budget else tools + [submit]
+        started = time.time()
+        try:
+            response = _groq.chat.completions.create(
+                model=model, messages=messages, tools=[spec(t) for t in available],
+                # Groq accepts a forced call, so once the budget is spent we force the final answer.
+                tool_choice={"type": "function", "function": {"name": SUBMIT}} if out_of_budget else "auto",
+                reasoning_effort=EFFORT if EFFORT in ("low", "medium", "high") else "medium",
+                max_completion_tokens=4000,
+            )
+        except groq.RateLimitError as e:
+            raise RateLimited(f"rate limited: {e.message}") from e
+        except groq.BadRequestError as e:
+            failures += 1
+            if failures <= 2 and any(k in str(e.message).lower() for k in ("tool", "parse", "failed_generation")):
+                continue  # the model produced a malformed tool call or plain text; ask again
+            raise LLMError(f"API error {e.status_code}: {e.message}") from e
+        except groq.APIStatusError as e:
+            raise LLMError(f"API error {e.status_code}: {e.message}") from e
+        except groq.APIConnectionError as e:
+            raise LLMError("network error talking to Groq") from e
+        if response.usage:
+            _log(model, final, started, response.usage.prompt_tokens, response.usage.completion_tokens)
+
+        msg = response.choices[0].message
+        calls = msg.tool_calls or []
+        if not calls:
+            failures += 1
+            if failures > 3:
+                raise LLMError("agent never submitted a decision")
+            messages += [{"role": "assistant", "content": msg.content or ""},
+                         {"role": "user", "content": "Use a tool, or call `submit` with your final decision."}]
+            continue
+        messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": [
+            {"id": c.id, "type": "function", "function": {"name": c.function.name, "arguments": c.function.arguments}}
+            for c in calls
+        ]})
+        for c in calls:
+            try:
+                args = json.loads(c.function.arguments or "{}")
+            except json.JSONDecodeError:
+                args = None
+            if c.function.name == SUBMIT and args is not None:
+                try:
+                    return final.model_validate(args)
+                except ValidationError as e:
+                    result = {"error": f"invalid decision: {e}. Call submit again with valid arguments."}
+            elif args is None:
+                result = {"error": "arguments were not valid JSON"}
+            elif used >= max_tool_calls or c.function.name not in {t.name for t in tools}:
+                result = {"error": "tool not available now — call submit"}
+            else:
+                used += 1
+                yield ToolCall(c.function.name, args)
+                result = _run_tool(execute, c.function.name, args)
+                yield ToolCall(c.function.name, args, result)
+            messages.append({"role": "tool", "tool_call_id": c.id,
+                             "content": json.dumps(result)[:6000] + " " + _budget_note(used, max_tool_calls)})
+
+
+def _anthropic_agent(system, user, tools, submit, execute, final, max_tool_calls, model):
+    import anthropic
+
+    global _anthropic
+    if _anthropic is None:
+        _anthropic = anthropic.Anthropic(max_retries=3, timeout=60.0)
+
+    def spec(t: Tool) -> dict:
+        return {"name": t.name, "description": t.description, "input_schema": t.parameters}
+
+    messages: list[dict] = [{"role": "user", "content": user}]
+    used, nudges = 0, 0
+    while True:
+        out_of_budget = used >= max_tool_calls
+        available = [submit] if out_of_budget else tools + [submit]
+        started = time.time()
+        try:
+            # Forced tool_choice is rejected on Claude Opus 5.5, so the budget note steers it to `submit` instead.
+            response = _anthropic.messages.create(
+                model=model, max_tokens=8000, system=system, messages=messages,
+                tools=[spec(t) for t in available], output_config={"effort": EFFORT},
+            )
+        except anthropic.RateLimitError as e:
+            raise RateLimited(f"rate limited: {e.message}") from e
+        except anthropic.APIStatusError as e:
+            raise LLMError(f"API error {e.status_code}: {e.message}") from e
+        except anthropic.APIConnectionError as e:
+            raise LLMError("network error talking to Claude") from e
+        _log(model, final, started, response.usage.input_tokens, response.usage.output_tokens)
+        if response.stop_reason == "refusal":
+            raise LLMError("model declined this request")
+
+        uses = [b for b in response.content if b.type == "tool_use"]
+        messages.append({"role": "assistant", "content": response.content})
+        if not uses:
+            nudges += 1
+            if nudges > 3:
+                raise LLMError("agent never submitted a decision")
+            messages.append({"role": "user", "content": "Use a tool, or call `submit` with your final decision."})
+            continue
+        results = []
+        for b in uses:
+            if b.name == SUBMIT:
+                try:
+                    return final.model_validate(b.input)
+                except ValidationError as e:
+                    result, is_error = {"error": f"invalid decision: {e}"}, True
+            elif used >= max_tool_calls or b.name not in {t.name for t in tools}:
+                result, is_error = {"error": "tool not available now — call submit"}, True
+            else:
+                used += 1
+                yield ToolCall(b.name, b.input)
+                result = _run_tool(execute, b.name, b.input)
+                is_error = "error" in result
+                yield ToolCall(b.name, b.input, result)
+            results.append({"type": "tool_result", "tool_use_id": b.id, "is_error": is_error,
+                            "content": json.dumps(result)[:6000] + " " + _budget_note(used, max_tool_calls)})
+        messages.append({"role": "user", "content": results})

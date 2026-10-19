@@ -89,6 +89,16 @@ When the Engineer checks a claim, the stream carries three events in a row:
 2. `{"speaker": "system", "tool_used": "run_tests", "message": "Sandbox: passed — 2 passed, 0 failed (1.8s)", "reasoning": "pytest -q tests/test_loans.py"}` — the raw result
 3. `{"speaker": "engineer", "tool_used": null, "reasoning": "[test inconclusive] <claim>", "message": "<what the result means> <question>"}` — `reasoning` starts with `[test supported]`, `[test contradicted]` or `[test inconclusive]`
 
+### Tool calls by the agentic Engineer
+
+Every `read_file` / `search_code` / `run_tests` call the Engineer makes streams as a pair:
+
+1. `{"speaker": "engineer", "tool_used": "search_code", "message": "Let me search the code for “teardown”.", "reasoning": "<why>"}`
+2. `{"speaker": "system", "tool_used": "search_code", "message": "Search “teardown”: 0 match(es)", "reasoning": "<first matches>"}`
+
+For `read_file` the result message is "Read app/main.py (17 lines)", with `file_ref` set to the path. Suggested UI:
+show these in the reasoning sidebar as an activity log and don't read them aloud.
+
 ## 6. Report (GET /report/{id})
 
 Defined as `Report` in `agents/schemas.py`. Example: `docs/evidence/2026-10-20-groq-live-report.json`.
@@ -102,6 +112,7 @@ Defined as `Report` in `agents/schemas.py`. Example: `docs/evidence/2026-10-20-g
 | `weak_spots[]` | `{title, file_ref, why, evidence[]}` — evidence quotes are copied from the transcript, not generated |
 | `unanswered[]` | `{turn, examiner, question, file_ref, answer}` |
 | `test_evidence[]` | `{turn, claim, test_path, result: RunTestsResult, outcome, explanation}` |
+| `code_checks[]` | `{turn, examiner, tool, args, summary}`: every tool call the Engineer made |
 | `study_plan[]` | `{title, action, file_ref, minutes}` |
 | `recruiter_summary` | 3–4 sentences |
 

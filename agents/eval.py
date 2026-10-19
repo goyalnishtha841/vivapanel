@@ -22,7 +22,7 @@ from .panel import Panel
 from .quality import metrics
 from .schemas import KeyFile, ProjectSummary
 from .scoring import build_report, report_to_markdown
-from .tools import mock_test_runner
+from .tools import mock_repo_tools, mock_test_runner
 
 ROOT = Path(__file__).resolve().parent.parent
 SUMMARY = ProjectSummary.model_validate_json((Path(__file__).parent / "mock_data" / "mock_summary.json").read_text())
@@ -75,7 +75,7 @@ def _file_key(file_ref: str | None) -> str | None:
 
 def run(persona: str) -> dict:
     summary = SUMMARY if persona != "large" else large_summary()
-    panel = Panel(summary, run_tests=mock_test_runner())
+    panel = Panel(summary, run_tests=mock_test_runner(), repo_tools=mock_repo_tools())
     events, checks, seen = [], [], {}
     t0 = time.time()
 

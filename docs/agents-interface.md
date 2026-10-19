@@ -6,7 +6,8 @@ Everything B needs is in `agents/panel.py`. One `Panel` per viva session.
 from agents.panel import Panel
 from agents.schemas import ProjectSummary, Event
 
-panel = Panel(summary, run_tests=run_tests)   # run_tests: your sandbox, see below
+panel = Panel(summary, run_tests=run_tests,   # run_tests: your sandbox, see below
+              repo_tools=LocalRepoTools(clone_dir))   # makes the Engineer a tool-using agent
 for event in panel.start():            # moderator plan + first question
     publish(session_id, event)         # -> SSE on GET /stream/{id}
 
@@ -24,6 +25,13 @@ from agents.scoring import build_report
 report = build_report(summary, panel.state)   # one LLM call, ~15 s; cache it in SQLite
 return report.model_dump()
 ```
+
+## repo_tools (agentic Engineer)
+
+`from agents.tools import LocalRepoTools` — `read_file` and `search_code` over a directory. Point it at your clone
+of the student's repo (the same read-only copy the sandbox uses). It refuses paths outside the repo. You can swap in
+your own object as long as it has `read_file(path, start_line=1) -> dict` and `search_code(query) -> dict` in the
+api-contract §3 shapes. Without `repo_tools`, the Engineer judges from the summary only.
 
 ## run_tests (Day 3)
 

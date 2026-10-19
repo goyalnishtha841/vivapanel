@@ -24,8 +24,10 @@ from .guardrails import ANSWER_NOTES, clip_answer, classify_answer
 from .llm import LLMError
 from .moderator import ORDER, Moderator
 from .schemas import (
-    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, ProjectSummary, RunTestsResult, Turn, Verification,
+    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, ProjectSummary, RunTestsResult, ToolRecord, Turn,
+    Verification,
 )
+from . import llm
 from .tools import TestRunner
 
 MAX_QUESTIONS = 12      # ~5 minute session
@@ -42,14 +44,18 @@ class PanelState(BaseModel):
     follow_ups_on_topic: int = 0
     challenges_used: int = 0
     verifications: list[Verification] = []
+    tool_calls: list[ToolRecord] = []
     done: bool = False
 
 
 class Panel:
     def __init__(self, summary: ProjectSummary, examiners: tuple[Role, ...] = ORDER, state: PanelState | None = None,
-                 run_tests: TestRunner | None = None):
+                 run_tests: TestRunner | None = None, repo_tools=None):
+        """repo_tools: an object with read_file(path, start_line=1) and search_code(query) — e.g. LocalRepoTools.
+        When given, the Engineer becomes a tool-using agent (reads/searches the code, picks which tests to run)."""
         self.summary = summary
         self.run_tests = run_tests
+        self.repo_tools = repo_tools
         self.state = state or PanelState(examiners=list(examiners))
         roles = tuple(self.state.examiners)
         self.moderator = Moderator(summary, roles)
@@ -61,8 +67,9 @@ class Panel:
         return self.state.model_dump_json()
 
     @classmethod
-    def from_json(cls, summary: ProjectSummary, data: str, run_tests: TestRunner | None = None) -> "Panel":
-        return cls(summary, state=PanelState.model_validate_json(data), run_tests=run_tests)
+    def from_json(cls, summary: ProjectSummary, data: str, run_tests: TestRunner | None = None,
+                  repo_tools=None) -> "Panel":
+        return cls(summary, state=PanelState.model_validate_json(data), run_tests=run_tests, repo_tools=repo_tools)
 
     @property
     def done(self) -> bool:
@@ -115,7 +122,11 @@ class Panel:
 
         # 1. The examiner who asked judges the answer and decides: follow up or yield.
         try:
-            d = asker.respond(st.transcript, st.follow_ups_on_topic, note=ANSWER_NOTES.get(kind))
+            if turn.examiner == "engineer" and self.repo_tools is not None and kind not in ("empty", "dont_know"):
+                d = yield from self._stream_tools("engineer", asker.respond_agentic(
+                    st.transcript, st.follow_ups_on_topic, self.repo_tools, note=ANSWER_NOTES.get(kind)))
+            else:
+                d = asker.respond(st.transcript, st.follow_ups_on_topic, note=ANSWER_NOTES.get(kind))
         except LLMError:
             turn.answer = None  # keep the question open so the student can resend the answer
             raise
@@ -184,34 +195,82 @@ class Panel:
         return (self.run_tests is not None and "engineer" in self.examiners
                 and len(self.state.verifications) < MAX_TEST_RUNS)
 
+    def _safe_run_tests(self, test_path: str | None) -> RunTestsResult:
+        try:
+            return self.run_tests(test_path)
+        except Exception as e:  # the sandbox must never take the viva down
+            return RunTestsResult(status="error", command=f"run_tests({test_path!r})", output_tail=str(e)[-500:])
+
     def _verify(self, turn_no: int, claim: str, test_path: str | None) -> Iterator[Event]:
         st = self.state
         turn = st.transcript[turn_no - 1]
-        target = test_path or "the full test suite"
-        yield Event(
-            speaker="engineer", message=f"That's a testable claim. Let me run {target} in the sandbox.",
-            reasoning=f"Student claimed: \"{claim}\". Checking it against the project's own tests.",
-            file_ref=test_path, tool_used="run_tests",
-        )
-        try:
-            result = self.run_tests(test_path)
-        except Exception as e:  # the sandbox must never take the viva down
-            result = RunTestsResult(status="error", command=f"run_tests({test_path!r})", output_tail=str(e)[-500:])
-        yield Event(
-            speaker="system",
-            message=f"Sandbox: {result.status} — {result.passed} passed, {result.failed} failed"
-                    + (f", {result.errors} errors" if result.errors else "") + f" ({result.duration_s:.1f}s)",
-            reasoning=f"{result.command}" + (f" · failing: {', '.join(result.failing_tests)}" if result.failing_tests else ""),
-            file_ref=test_path, tool_used="run_tests",
-        )
         engineer = self.examiners["engineer"]
-        v = engineer.verify(st.transcript, claim, result)
+        if self.repo_tools is not None:
+            # Agentic: the Engineer chooses which tests to run and may read them before judging.
+            v, result = yield from self._stream_tools("engineer", engineer.verify_agentic(
+                st.transcript, claim, test_path, self.repo_tools, self._safe_run_tests))
+            ran = next((r for r in reversed(st.tool_calls) if r.tool == "run_tests"), None)
+            test_path = (ran.args.get("test_path") or None) if ran else test_path  # what the agent actually ran
+        else:
+            target = test_path or "the full test suite"
+            yield Event(
+                speaker="engineer", message=f"That's a testable claim. Let me run {target} in the sandbox.",
+                reasoning=f"Student claimed: \"{claim}\". Checking it against the project's own tests.",
+                file_ref=test_path, tool_used="run_tests",
+            )
+            result = self._safe_run_tests(test_path)
+            yield self._tool_result_event("run_tests", {"test_path": test_path or ""}, result.model_dump())
+            v = engineer.verify(st.transcript, claim, result)
+        if v.outcome == "contradicted" and not (result.failed or result.errors) and "fail" not in claim.lower():
+            # Guardrail: an all-green run can't disprove a claim that something works; at most it fails to prove it.
+            v = v.model_copy(update={"outcome": "inconclusive"})
         st.verifications.append(Verification(
             turn=turn_no, claim=claim, test_path=test_path, result=result, outcome=v.outcome, explanation=v.explanation,
         ))
         st.follow_ups_on_topic = 1  # Engineer judges the next answer and may follow up once more
         yield self._ask("engineer", "verify", turn.topic, test_path or turn.file_ref or "", f"{v.explanation} {v.question}",
                         f"[test {v.outcome}] {claim}")
+
+    # ---------- tool calls -> events ----------
+
+    def _stream_tools(self, role: Role, gen):
+        """Run an agentic examiner move: turn each llm.ToolCall into Events, record it, return the decision."""
+        while True:
+            try:
+                call = next(gen)
+            except StopIteration as stop:
+                return stop.value
+            if call.result is None:
+                yield _tool_start_event(role, call)
+            else:
+                event = self._tool_result_event(call.name, call.args, call.result)
+                self.state.tool_calls.append(ToolRecord(
+                    turn=len(self.state.transcript), examiner=role, tool=call.name,
+                    args={k: v for k, v in call.args.items() if k != "why"}, summary=event.message,
+                ))
+                yield event
+
+    def _tool_result_event(self, name: str, args: dict, result: dict) -> Event:
+        if "error" in result and name != "run_tests":
+            msg, why = f"{name}: {result['error']}", ""
+        elif name == "read_file":
+            msg = f"Read {result['path']} ({result.get('total_lines', '?')} lines)"
+            why = ""
+        elif name == "search_code":
+            m = result.get("matches", [])
+            first = f" — first: {m[0]['path']}:{m[0]['line']}" if m else ""
+            msg = f"Search “{result.get('query', '')}”: {len(m)}{'+' if result.get('truncated') else ''} match(es){first}"
+            why = " · ".join(f"{x['path']}:{x['line']} {x['text'][:60]}" for x in m[:4])
+        else:  # run_tests
+            r = RunTestsResult.model_validate(result) if "status" in result else None
+            if r is None:
+                msg, why = f"run_tests: {result.get('error', 'no result')}", ""
+            else:
+                msg = (f"Sandbox: {r.status} — {r.passed} passed, {r.failed} failed"
+                       + (f", {r.errors} errors" if r.errors else "") + f" ({r.duration_s:.1f}s)")
+                why = r.command + (f" · failing: {', '.join(r.failing_tests)}" if r.failing_tests else "")
+        ref = args.get("path") or args.get("test_path") or None
+        return Event(speaker="system", message=msg, reasoning=why, file_ref=ref, tool_used=name)
 
     # ---------- helpers ----------
 
@@ -248,3 +307,15 @@ def _enforce(d, kind: str):
     if kind in ("empty", "dont_know", "one_word"):
         d = d.model_copy(update={"testable_claim": "", "test_path": ""})
     return d
+
+
+def _tool_start_event(role: Role, call: "llm.ToolCall") -> Event:
+    a = call.args
+    if call.name == "read_file":
+        msg, ref = f"Let me look at {a.get('path')}.", a.get("path")
+    elif call.name == "search_code":
+        msg, ref = f"Let me search the code for “{a.get('query')}”.", None
+    else:
+        target = a.get("test_path") or "the full test suite"
+        msg, ref = f"That's testable. Let me run {target} in the sandbox.", a.get("test_path") or None
+    return Event(speaker=role, message=msg, reasoning=str(a.get("why", "")), file_ref=ref, tool_used=call.name)
