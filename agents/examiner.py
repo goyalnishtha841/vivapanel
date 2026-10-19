@@ -9,6 +9,7 @@ three examiners remember everything the student has said to anyone. Three moves:
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TypeVar
 
@@ -33,6 +34,10 @@ TRANSCRIPT_WINDOW = 20
 DISPLAY = {"professor": "Professor", "engineer": "Engineer", "junior": "Junior"}
 
 T = TypeVar("T", bound=BaseModel)
+
+# Examiners that run on the smaller, faster model. On Groq's free tier each model has its own
+# tokens-per-minute budget, so splitting roles across models keeps the live panel from stalling.
+FAST_ROLES = {r.strip() for r in os.getenv("VIVA_FAST_ROLES", "junior" if llm.PROVIDER == "groq" else "").split(",") if r.strip()}
 
 
 def render_summary(s: ProjectSummary) -> str:
@@ -68,6 +73,7 @@ class Examiner:
     def __init__(self, role: Role, summary: ProjectSummary):
         self.role = role
         self.summary = summary
+        self.fast = role in FAST_ROLES
         self.system = "\n\n".join(
             [
                 (PROMPTS / f"{role}.md").read_text(),
@@ -90,9 +96,12 @@ class Examiner:
                 f"## Panel transcript\n{render_transcript(transcript)}\n\n"
                 f"## Your turn\nThe moderator gave you the floor to open this topic:\n"
                 f"- Topic: {topic.title}\n- Anchor: {topic.file_ref}\n- Why it matters: {topic.why}\n\n"
-                "Ask your opening question on it. If the student already said something relevant earlier, build on it."
+                "Ask your opening question on it, about the anchor file above — other files belong to other topics. "
+                "If the student already said something relevant earlier, build on it rather than repeating it."
             )
             d = self._grounded(user, QuestionDecision, lambda d: d.file_ref, default_ref=topic.file_ref)
+            if split_ref(d.file_ref)[0] != split_ref(topic.file_ref)[0]:
+                d = d.model_copy(update={"file_ref": topic.file_ref})  # keep the event anchored to the plan
         return d.model_copy(update={"question": ensure_question_cites(d.question, d.file_ref)})
 
     def respond(self, transcript: list[Turn], follow_ups_used: int) -> RespondDecision:
@@ -126,27 +135,37 @@ class Examiner:
         last = transcript[-1]
         if llm.is_offline():
             return self._offline_challenge(last)
+        last_path = split_ref(last.file_ref or "")[0]
         user = (
             f"## Panel transcript\n{render_transcript(transcript)}\n\n"
-            f"## Your turn\nYour colleague the {DISPLAY[last.examiner]} just judged the student's last answer as "
-            f"`{last.verdict}` and is moving on. Interject only if, from your own lane, either (a) you think that "
-            "verdict was wrong given the code (stance `disagree`), or (b) the verdict stands but the answer misses "
-            "something important that you can probe in one question (stance `extend`). Otherwise set interject to "
-            "false. Interjections should be rare and sharp — a real panel member doesn't speak just to speak."
+            f"## Your turn\nThe STUDENT just answered the {DISPLAY[last.examiner]}'s question on the topic "
+            f"\"{last.topic}\" (file `{last_path}`). The {DISPLAY[last.examiner]} judged the student's answer "
+            f"`{last.verdict}` and is moving on.\n\n"
+            "Interject only if, from YOUR lane, either (a) you think that verdict was wrong given the code "
+            "(stance `disagree`), or (b) the verdict stands but the student's answer misses something important "
+            "you can probe with one question (stance `extend`). Otherwise set interject to false — interjections "
+            "should be rare and sharp.\n\n"
+            f"If you interject: stay on the SAME topic and the SAME file (`{last_path}`) — don't open a new topic, "
+            f"other topics are already assigned. You are the {self.name}. Start with a short clause addressed to "
+            f"your colleague, e.g. \"I'd push back on that, {DISPLAY[last.examiner]} —\", then ask the STUDENT one "
+            "question in your own lane and style. Max 2 sentences, max 40 words."
         )
         d = self._grounded(
             user, ChallengeDecision, lambda d: d.file_ref if d.interject else None,
-            default_ref=last.file_ref or fallback_ref(self.summary),
+            default_ref=last.file_ref or fallback_ref(self.summary), fast=True,
         )
-        if d.interject:
-            d = d.model_copy(update={"message": ensure_question_cites(d.message, d.file_ref)})
-        return d
+        if d.interject and split_ref(d.file_ref)[0] != last_path:
+            # Guardrail: a challenge that drifts to another file steals a colleague's topic. Drop it.
+            return ChallengeDecision(interject=False, stance="none", message="", file_ref="",
+                                     reasoning=f"Dropped off-topic interjection on {d.file_ref}.")
+        return d  # no "Looking at …" prefix: it breaks "I'd push back, X —"; the UI shows file_ref anyway
 
     # ---------- LLM call with file_ref guardrail ----------
 
-    def _grounded(self, user: str, schema: type[T], ref_of, default_ref: str) -> T:
+    def _grounded(self, user: str, schema: type[T], ref_of, default_ref: str, fast: bool = False) -> T:
         """Call the model; if it cites a file that isn't in the repo, retry once, then fall back to a real file."""
-        d = llm.structured_call(self.system, user, schema)
+        fast = fast or self.fast
+        d = llm.structured_call(self.system, user, schema, fast=fast)
         ref = ref_of(d)
         if ref is None or file_ref_exists(ref, self.summary):
             return d
@@ -154,7 +173,7 @@ class Examiner:
             user + f"\n\nYour previous draft cited `{ref}`, which is NOT in the file list. "
             "Rewrite your answer citing a path that is in the file list."
         )
-        d = llm.structured_call(self.system, retry, schema)
+        d = llm.structured_call(self.system, retry, schema, fast=fast)
         ref = ref_of(d)
         if ref is None or file_ref_exists(ref, self.summary):
             return d

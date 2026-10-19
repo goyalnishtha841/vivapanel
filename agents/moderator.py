@@ -19,7 +19,7 @@ from .schemas import Examiner as Role, KeyFile, PanelPlan, PlannedTopic, Project
 
 PROMPTS = Path(__file__).parent / "prompts"
 ORDER: tuple[Role, ...] = ("professor", "engineer", "junior")
-MAX_TOPICS_PER_EXAMINER = 3
+MAX_TOPICS_PER_EXAMINER = 2
 
 # Offline planning: keywords that pull a file into an examiner's lane.
 # Weighted so security/concurrency smells go to the Engineer first.
@@ -35,6 +35,12 @@ LANE_KEYWORDS: dict[Role, tuple[tuple[str, int], ...]] = {
 def is_test_file(path: str) -> bool:
     name = path.rsplit("/", 1)[-1]
     return path.startswith(("tests/", "test/")) or name.startswith("test_") or name.endswith(("_test.py", ".test.js", ".spec.js"))
+
+
+def _soft_lower(title: str) -> str:
+    """Lowercase the first letter for mid-sentence use, unless it starts an acronym (JWT, SQL)."""
+    first = title.split(" ", 1)[0]
+    return title if first[:2].isupper() else title[0].lower() + title[1:]
 
 
 class Moderator:
@@ -139,8 +145,10 @@ class Moderator:
         by_role: dict[str, list[str]] = {}
         for t in plan.topics:
             by_role.setdefault(t.examiner, []).append(t.title)
-        message = "Welcome to your viva. " + " ".join(
-            f"The {DISPLAY[r]} will ask about {' and '.join(titles)}." for r, titles in by_role.items()
+        body = "; ".join(
+            f"the {DISPLAY[r]} will ask about {' and '.join(_soft_lower(t) for t in titles)}"
+            for r, titles in by_role.items()
         )
+        message = f"Welcome to your viva. {body[0].upper()}{body[1:]}."
         reasoning = " | ".join(f"{DISPLAY[t.examiner]} → {split_ref(t.file_ref)[0]}: {t.why}" for t in plan.topics)
         return message, reasoning

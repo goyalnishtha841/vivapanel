@@ -82,7 +82,7 @@ class QuestionDecision(BaseModel):
     """An examiner opening a new topic."""
 
     file_ref: str = Field(description="Exact repo path from the file list, optionally ':function'.")
-    question: str = Field(description="The single question to ask now. Max 2 sentences.")
+    question: str = Field(description="The single question to ask now. Max 2 sentences, max 35 words.")
     reasoning: str = Field(description="Why this question, in one sentence, for the reasoning sidebar.")
 
 
@@ -95,7 +95,7 @@ class RespondDecision(BaseModel):
         description="follow_up = one deeper question on the same topic; yield = done with this topic."
     )
     file_ref: str = Field(description="For follow_up: exact repo path from the file list. Empty when yielding.")
-    question: str = Field(description="For follow_up: the single question, max 2 sentences. Empty when yielding.")
+    question: str = Field(description="For follow_up: the single question, max 2 sentences, max 35 words. Empty when yielding.")
     reasoning: str = Field(description="Why follow up or yield, in one sentence.")
 
 
@@ -108,8 +108,8 @@ class ChallengeDecision(BaseModel):
         "the answer misses something in your lane; none = not interjecting."
     )
     message: str = Field(
-        description="If interjecting: address the colleague by role in one sentence, then ask the student one "
-        "question. Max 3 sentences total. Empty otherwise."
+        description="If interjecting: a short clause to the colleague by role, then one question to the STUDENT "
+        "on the same topic. Max 2 sentences, max 40 words. Empty otherwise."
     )
     file_ref: str = Field(description="If interjecting: exact repo path from the file list. Empty otherwise.")
     reasoning: str = Field(description="One sentence for the reasoning sidebar.")

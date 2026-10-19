@@ -16,13 +16,15 @@ Three examiners — **Professor** (design/theory), **Industry Engineer** (scale,
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env        # add ANTHROPIC_API_KEY
+cp .env.example .env        # add ANTHROPIC_API_KEY, or set VIVA_PROVIDER=groq + GROQ_API_KEY
 .venv/bin/python -m agents.cli                     # full panel vs. the mock project
 .venv/bin/python -m agents.cli --only professor     # one examiner
 VIVA_OFFLINE=1 .venv/bin/python -m agents.cli      # scripted, no API calls
 ```
 
-Each run is logged to `runs/*.jsonl` in the shared Event format.
+Each run is logged to `runs/*.jsonl` in the shared Event format. `VIVA_DEBUG=1` prints latency and tokens per model call.
+
+**Groq free tier note:** 8,000 tokens/minute per model. A panel turn sends ~2–3k tokens, so the Junior and the cross-challenge checks run on `gpt-oss-20b` (its own budget) and the Professor/Engineer on `gpt-oss-120b`. Expect occasional 10–30 s waits on the free tier.
 
 ## How the agents coordinate
 
