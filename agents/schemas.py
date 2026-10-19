@@ -116,9 +116,9 @@ class VerifyDecision(BaseModel):
         "inconclusive = the tests ran but don't actually exercise the claim, or the run errored/timed out."
     )
     explanation: str = Field(
-        description="One or two sentences citing the result (counts, failing test names) and what it means for the claim."
+        description="One sentence, max 30 words, citing the result (counts, failing test names) and what it means for the claim."
     )
-    question: str = Field(description="One question to the student about this result. Max 2 sentences, max 35 words.")
+    question: str = Field(description="One question to the student about this result. One sentence, max 25 words.")
 
 
 class ChallengeDecision(BaseModel):
@@ -130,8 +130,8 @@ class ChallengeDecision(BaseModel):
         "the answer misses something in your lane; none = not interjecting."
     )
     message: str = Field(
-        description="If interjecting: a short clause to the colleague by role, then one question to the STUDENT "
-        "on the same topic. Max 2 sentences, max 40 words. Empty otherwise."
+        description="If interjecting: ONLY your one question to the STUDENT on the same topic, max 30 words. Do not "
+        "address your colleague — the panel adds that. Empty otherwise."
     )
     file_ref: str = Field(description="If interjecting: exact repo path from the file list. Empty otherwise.")
     reasoning: str = Field(description="One sentence for the reasoning sidebar.")
@@ -141,7 +141,7 @@ class Turn(BaseModel):
     """One question and its answer, in the panel's shared memory."""
 
     examiner: Examiner
-    kind: Literal["open", "follow_up", "challenge", "verify"]
+    kind: Literal["open", "follow_up", "challenge", "verify", "rephrase"]
     topic: str
     file_ref: Optional[str]
     question: str

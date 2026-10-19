@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from pydantic import BaseModel
 
 from .examiner import DISPLAY, Examiner
+from .guardrails import ANSWER_NOTES, clip_answer, classify_answer
 from .llm import LLMError
 from .moderator import ORDER, Moderator
 from .schemas import (
@@ -97,18 +98,36 @@ class Panel:
         turn = st.transcript[-1]
         turn.answer = text.strip()
         yield Event(speaker="student", message=turn.answer)
+        kind = classify_answer(turn.answer)
+        asker = self.examiners[turn.examiner]
+
+        # 0. "Can you repeat that?" — re-ask more simply, ungraded, once per question.
+        if kind == "clarify" and turn.kind != "rephrase" and len(st.transcript) < MAX_QUESTIONS:
+            try:
+                q = asker.rephrase(st.transcript)
+            except LLMError:
+                turn.answer = None
+                raise
+            turn.verdict, turn.judgement = "not_applicable", "Student asked for clarification."
+            yield self._ask(turn.examiner, "rephrase", turn.topic, q.file_ref, q.question,
+                            "Student asked for clarification — rephrasing, not graded.")
+            return
 
         # 1. The examiner who asked judges the answer and decides: follow up or yield.
-        asker = self.examiners[turn.examiner]
         try:
-            d = asker.respond(st.transcript, st.follow_ups_on_topic)
+            d = asker.respond(st.transcript, st.follow_ups_on_topic, note=ANSWER_NOTES.get(kind))
         except LLMError:
             turn.answer = None  # keep the question open so the student can resend the answer
             raise
+        d = _enforce(d, kind)
+        if kind == "injection":
+            yield Event(speaker="system", message="Guardrail: the answer contained instructions to the panel. "
+                        "They were ignored and the answer was graded on its content only.",
+                        reasoning=f"Matched an instruction-injection pattern; verdict capped at weak (now {d.verdict}).")
         turn.verdict, turn.judgement = d.verdict, d.judgement
         st.assessments.append(Assessment(
             examiner=turn.examiner, topic=turn.topic, file_ref=turn.file_ref, question=turn.question,
-            answer=turn.answer, verdict=d.verdict, judgement=d.judgement,
+            answer=clip_answer(turn.answer), verdict=d.verdict, judgement=d.judgement,
         ))
 
         out_of_time = len(st.transcript) >= MAX_QUESTIONS
@@ -215,3 +234,17 @@ class Panel:
             message="That's the end of the viva. Thank you — your report is being prepared.",
             reasoning=f"{reason} {len(answered)} questions answered, {self.state.challenges_used} cross-challenge(s).",
         )
+
+
+def _enforce(d, kind: str):
+    """Code has the last word on edge cases, whatever the model said."""
+    if kind in ("empty", "dont_know") and d.verdict != "no_answer":
+        d = d.model_copy(update={"verdict": "no_answer"})
+    if kind == "injection":
+        update = {"testable_claim": "", "test_path": ""}
+        if d.verdict in ("strong", "partial"):
+            update |= {"verdict": "weak", "judgement": "[Instruction attempt ignored.] " + d.judgement}
+        d = d.model_copy(update=update)
+    if kind in ("empty", "dont_know", "one_word"):
+        d = d.model_copy(update={"testable_claim": "", "test_path": ""})
+    return d

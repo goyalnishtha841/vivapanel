@@ -57,6 +57,21 @@ def run_tests(test_path: str | None) -> RunTestsResult:   # None = whole suite
   same Event shapes. Use it for integration tests and for Member C's UI work.
 - **Single examiner.** `Panel(summary, examiners=("professor",))` runs one examiner only.
 
+## Edge cases the panel handles (Day 4)
+
+| Student sends | What happens |
+|---|---|
+| "Can you repeat that?" / "What do you mean?" | Same examiner re-asks in plainer words; not graded (once per question) |
+| empty, "idk", "no idea" | Always `no_answer`; the follow-up is easier |
+| "yes" / one word | Usually `weak`; asked to explain |
+| "ignore previous instructions…" | A `system` guardrail event, verdict capped at `weak`, no test run |
+| a huge paste | Clipped to 1,500 chars before it reaches any prompt |
+
+Nothing for B to do here — it's all inside `panel.answer()`. Just pass the raw text through.
+
+**Rate limits:** `agents.llm` retries a rate-limited call on the fast model, and after a daily cap stays on it.
+`LLMError` is only raised if the fast model fails too.
+
 ## Event speakers you will see
 
 `moderator` (plan, handovers, closing) · `professor` · `engineer` · `junior` · `student` (echo of the

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import llm
 from .examiner import DISPLAY, render_summary
-from .guardrails import file_ref_exists
+from .guardrails import clip_answer, file_ref_exists
 from .panel import PanelState
 from .schemas import (
     ProjectSummary, Quote, Report, ReportNarrative, StudyStep, TopicScore, Turn, UnansweredQuestion, Verdict, WeakSpot,
@@ -141,7 +141,7 @@ def _render_for_scorer(state: PanelState, topics: list[TopicScore]) -> str:
     lines = ["## Transcript"]
     for i, t in enumerate(state.transcript, 1):
         lines.append(f"Q{i} {DISPLAY[t.examiner]} [{t.kind}, topic: {t.topic}] ({t.file_ref}): {t.question}")
-        lines.append(f"A{i} Student: {t.answer if t.answer is not None else '(no answer — session ended)'}")
+        lines.append(f"A{i} Student: " + (f"«{clip_answer(t.answer)}»" if t.answer is not None else "(no answer — session ended)"))
         if t.verdict:
             lines.append(f"   ↳ verdict: {t.verdict} — {t.judgement}")
     lines.append("\n## Sandbox test runs")

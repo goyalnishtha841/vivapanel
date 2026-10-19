@@ -1,0 +1,637 @@
+{
+ "report": {
+  "repo_url": "https://github.com/example-student/campus-library-api",
+  "project": "campus-library-api",
+  "overall_score": 18,
+  "readiness": "not_ready",
+  "headline": "The student shows partial grasp of security fundamentals but fails to articulate key JWT handling and concurrency concerns.",
+  "topics": [
+   {
+    "topic": "Password hashing choice",
+    "examiner": "professor",
+    "file_ref": "app/auth.py",
+    "confidence": 28,
+    "verdicts": [
+     "weak",
+     "strong",
+     "weak",
+     "no_answer"
+    ],
+    "note": "The student knows hashing is used but incorrectly assumes it is secure without acknowledging the absence of a per\u2011user salt, leading to potential dictionary attacks.",
+    "evidence": [
+     {
+      "turn": 1,
+      "speaker": "professor",
+      "text": "On `auth.py`: How does your current hash_password implementation protect against dictionary attacks, and what would be the effect of adding a per\u2011user salt to this function?"
+     },
+     {
+      "turn": 1,
+      "speaker": "student",
+      "text": "It's secure because we hash passwords and use JWT."
+     },
+     {
+      "turn": 2,
+      "speaker": "professor",
+      "text": "What vulnerability does hash_password expose if no salt is used, and how would adding a unique salt per user mitigate it?"
+     }
+    ]
+   },
+   {
+    "topic": "Search query injection risk",
+    "examiner": "professor",
+    "file_ref": "app/routes/books.py:search_books",
+    "confidence": 22,
+    "verdicts": [
+     "weak",
+     "strong",
+     "no_answer",
+     "no_answer"
+    ],
+    "note": "The student recognizes the injection vulnerability and can propose a safe parameterized query, though earlier responses lacked this insight.",
+    "evidence": [
+     {
+      "turn": 8,
+      "speaker": "professor",
+      "text": "In the search_books endpoint you interpolate the query string directly into a SQL statement; what injection vulnerability does this expose, and how could you refactor the code to eliminate it?"
+     },
+     {
+      "turn": 8,
+      "speaker": "student",
+      "text": "It searches the books table and returns results."
+     },
+     {
+      "turn": 9,
+      "speaker": "professor",
+      "text": "Given that search_books interpolates the query directly, what specific SQL injection can an attacker exploit, and how would you rewrite the statement to use a parameterized query?"
+     }
+    ]
+   },
+   {
+    "topic": "Borrow concurrency edge case",
+    "examiner": "engineer",
+    "file_ref": "app/routes/loans.py:borrow_book",
+    "confidence": 20,
+    "verdicts": [
+     "weak"
+    ],
+    "note": "The student believes double\u2011borrowing is prevented, yet the current implementation relies on sequential tests and does not guard against race conditions.",
+    "evidence": [
+     {
+      "turn": 12,
+      "speaker": "engineer",
+      "text": "If two students hit borrow_book for the same copy_id at the same millisecond, what race condition could occur, and how would you modify the SQL to prevent double\u2011borrowing?"
+     },
+     {
+      "turn": 12,
+      "speaker": "student",
+      "text": "It's safe, my tests cover double-borrowing: test_borrow_twice_returns_409 passes."
+     }
+    ]
+   },
+   {
+    "topic": "JWT secret management",
+    "examiner": "engineer",
+    "file_ref": "app/auth.py:function create_token",
+    "confidence": null,
+    "verdicts": [],
+    "note": "The student did not address the hard\u2011coded JWT secret key, which is a security lapse.",
+    "evidence": []
+   },
+   {
+    "topic": "JWT authentication flow",
+    "examiner": "junior",
+    "file_ref": "app/auth.py:get_current_user",
+    "confidence": 0,
+    "verdicts": [
+     "no_answer",
+     "no_answer",
+     "no_answer"
+    ],
+    "note": "The student was unable to explain how the JWT is verified or handled when expired or tampered.",
+    "evidence": [
+     {
+      "turn": 5,
+      "speaker": "junior",
+      "text": "In get_current_user, how does the code verify the JWT\u2019s integrity and read the user data, and what happens if the token is invalid or expired?"
+     },
+     {
+      "turn": 5,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     },
+     {
+      "turn": 6,
+      "speaker": "junior",
+      "text": "In app/auth.py:get_current_user, what library call checks the token\u2019s signature, and how does the code handle a token that is invalid or has passed its expiration?"
+     }
+    ]
+   },
+   {
+    "topic": "Fine calculation logic",
+    "examiner": "junior",
+    "file_ref": "app/services/fines.py:function calculate_fine",
+    "confidence": null,
+    "verdicts": [],
+    "note": "The student did not discuss the fine calculation logic, leaving that area unassessed.",
+    "evidence": []
+   }
+  ],
+  "weak_spots": [
+   {
+    "title": "Password hashing weakness",
+    "file_ref": "app/auth.py",
+    "why": "Student\u2019s answers omitted the lack of a salt and the consequences of identical hashes, and they failed to explain how the lack of salt exposes the system to dictionary attacks.",
+    "evidence": [
+     {
+      "turn": 1,
+      "speaker": "professor",
+      "text": "On `auth.py`: How does your current hash_password implementation protect against dictionary attacks, and what would be the effect of adding a per\u2011user salt to this function?"
+     },
+     {
+      "turn": 1,
+      "speaker": "student",
+      "text": "It's secure because we hash passwords and use JWT."
+     },
+     {
+      "turn": 3,
+      "speaker": "engineer",
+      "text": "I'd extend, Engineer \u2014 How does get_current_user validate token expiration, and what could an attacker gain if expired tokens are accepted?"
+     },
+     {
+      "turn": 3,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     },
+     {
+      "turn": 4,
+      "speaker": "engineer",
+      "text": "In get_current_user, how is the JWT\u2019s exp claim checked, and what would an attacker gain if expired tokens were still accepted?"
+     },
+     {
+      "turn": 4,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     }
+    ]
+   },
+   {
+    "title": "JWT authentication gap",
+    "file_ref": "app/auth.py",
+    "why": "Student gave no substantive explanation of how JWT signatures are verified, how expiration is checked, or what happens when tokens are expired or tampered.",
+    "evidence": [
+     {
+      "turn": 5,
+      "speaker": "junior",
+      "text": "In get_current_user, how does the code verify the JWT\u2019s integrity and read the user data, and what happens if the token is invalid or expired?"
+     },
+     {
+      "turn": 5,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     },
+     {
+      "turn": 6,
+      "speaker": "junior",
+      "text": "In app/auth.py:get_current_user, what library call checks the token\u2019s signature, and how does the code handle a token that is invalid or has passed its expiration?"
+     },
+     {
+      "turn": 6,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     },
+     {
+      "turn": 7,
+      "speaker": "junior",
+      "text": "On `auth.py`: In get_current_user, which library function actually verifies the JWT signature, and how does the code react if that function raises an exception because the token is expired or tampered with?"
+     },
+     {
+      "turn": 7,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     }
+    ]
+   },
+   {
+    "title": "SQL injection oversight",
+    "file_ref": "app/routes/books.py",
+    "why": "Student\u2019s initial responses did not identify the injection risk or explain how parameterization mitigates it, and they failed to discuss the importance of proper quoting.",
+    "evidence": [
+     {
+      "turn": 8,
+      "speaker": "professor",
+      "text": "In the search_books endpoint you interpolate the query string directly into a SQL statement; what injection vulnerability does this expose, and how could you refactor the code to eliminate it?"
+     },
+     {
+      "turn": 8,
+      "speaker": "student",
+      "text": "It searches the books table and returns results."
+     },
+     {
+      "turn": 10,
+      "speaker": "junior",
+      "text": "I'd push back, Junior \u2014 could you explain why parameterizing the query actually prevents the injection, and what would happen if the placeholder is used incorrectly in the SQL statement?"
+     },
+     {
+      "turn": 10,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     },
+     {
+      "turn": 11,
+      "speaker": "junior",
+      "text": "On `books.py`: In the parameterized query, what would happen if you omitted the surrounding quotes around the placeholder, and why is that important?"
+     },
+     {
+      "turn": 11,
+      "speaker": "student",
+      "text": "I think I've said what I know about that."
+     }
+    ]
+   },
+   {
+    "title": "Concurrency vulnerability",
+    "file_ref": "app/routes/loans.py",
+    "why": "Student claims double\u2011borrowing is safe based on tests, but the code lacks transaction isolation, and the test does not simulate concurrent access, leaving a real race condition.",
+    "evidence": [
+     {
+      "turn": 12,
+      "speaker": "engineer",
+      "text": "If two students hit borrow_book for the same copy_id at the same millisecond, what race condition could occur, and how would you modify the SQL to prevent double\u2011borrowing?"
+     },
+     {
+      "turn": 12,
+      "speaker": "student",
+      "text": "It's safe, my tests cover double-borrowing: test_borrow_twice_returns_409 passes."
+     }
+    ]
+   }
+  ],
+  "unanswered": [
+   {
+    "turn": 4,
+    "examiner": "engineer",
+    "question": "In get_current_user, how is the JWT\u2019s exp claim checked, and what would an attacker gain if expired tokens were still accepted?",
+    "file_ref": "app/auth.py:get_current_user",
+    "answer": "I think I've said what I know about that."
+   },
+   {
+    "turn": 5,
+    "examiner": "junior",
+    "question": "In get_current_user, how does the code verify the JWT\u2019s integrity and read the user data, and what happens if the token is invalid or expired?",
+    "file_ref": "app/auth.py:get_current_user",
+    "answer": "I think I've said what I know about that."
+   },
+   {
+    "turn": 6,
+    "examiner": "junior",
+    "question": "In app/auth.py:get_current_user, what library call checks the token\u2019s signature, and how does the code handle a token that is invalid or has passed its expiration?",
+    "file_ref": "app/auth.py",
+    "answer": "I think I've said what I know about that."
+   },
+   {
+    "turn": 7,
+    "examiner": "junior",
+    "question": "On `auth.py`: In get_current_user, which library function actually verifies the JWT signature, and how does the code react if that function raises an exception because the token is expired or tampered with?",
+    "file_ref": "app/auth.py",
+    "answer": "I think I've said what I know about that."
+   },
+   {
+    "turn": 10,
+    "examiner": "junior",
+    "question": "I'd push back, Junior \u2014 could you explain why parameterizing the query actually prevents the injection, and what would happen if the placeholder is used incorrectly in the SQL statement?",
+    "file_ref": "app/routes/books.py",
+    "answer": "I think I've said what I know about that."
+   },
+   {
+    "turn": 11,
+    "examiner": "junior",
+    "question": "On `books.py`: In the parameterized query, what would happen if you omitted the surrounding quotes around the placeholder, and why is that important?",
+    "file_ref": "app/routes/books.py",
+    "answer": "I think I've said what I know about that."
+   }
+  ],
+  "test_evidence": [],
+  "study_plan": [
+   {
+    "title": "Add Salt & Verify Expiration",
+    "action": "Rewrite hash_password to include a per\u2011user salt and modify get_current_user to explicitly check the exp claim, raising an HTTPException if expired.",
+    "file_ref": "app/auth.py",
+    "minutes": 60
+   },
+   {
+    "title": "Secure Secret Key",
+    "action": "Move SECRET_KEY into an environment variable and load it during startup, ensuring the key is not hard\u2011coded.",
+    "file_ref": "app/auth.py",
+    "minutes": 15
+   },
+   {
+    "title": "Parameterize Search",
+    "action": "Rewrite search_books to use a parameterized query with LIKE ? and a bound parameter for the query string.",
+    "file_ref": "app/routes/books.py",
+    "minutes": 30
+   },
+   {
+    "title": "Guard Borrow Concurrency",
+    "action": "Wrap the borrow_book logic in an explicit transaction and use SELECT ... FOR UPDATE or an atomic UPDATE to prevent race conditions.",
+    "file_ref": "app/routes/loans.py",
+    "minutes": 45
+   },
+   {
+    "title": "Write Concurrency Tests",
+    "action": "Add pytest tests that spawn multiple threads or async tasks attempting to borrow the same copy_id concurrently and assert only one succeeds.",
+    "file_ref": "tests/test_loans.py",
+    "minutes": 60
+   }
+  ],
+  "recruiter_summary": "The student demonstrates awareness of password hashing basics, correctly identifies the need for per\u2011user salts, and can recognize SQL injection risks in the books search endpoint. However, they cannot explain JWT token verification, expiration handling, or the hard\u2011coded secret key, indicating a gap in authentication security. In the borrowing logic, the student believes double\u2011borrowing is prevented, yet the code lacks proper isolation and the tests do not cover concurrent requests. The repository\u2019s test coverage is moderate, with clear failures in concurrency and authentication edge cases.",
+  "questions_asked": 12,
+  "generated_at": "2026-10-19T21:57:53Z"
+ },
+ "report_md": "# Viva report \u2014 campus-library-api\n**18/100 \u00b7 Not ready** \u00b7 12 questions \u00b7 https://github.com/example-student/campus-library-api\n\n> The student shows partial grasp of security fundamentals but fails to articulate key JWT handling and concurrency concerns.\n\n## Topics\n| Topic | Examiner | Confidence | Verdicts | Note |\n|---|---|---|---|---|\n| Password hashing choice | Professor | 28 | weak, strong, weak, no_answer | The student knows hashing is used but incorrectly assumes it is secure without acknowledging the absence of a per\u2011user salt, leading to potential dictionary attacks. |\n| Search query injection risk | Professor | 22 | weak, strong, no_answer, no_answer | The student recognizes the injection vulnerability and can propose a safe parameterized query, though earlier responses lacked this insight. |\n| Borrow concurrency edge case | Engineer | 20 | weak | The student believes double\u2011borrowing is prevented, yet the current implementation relies on sequential tests and does not guard against race conditions. |\n| JWT secret management | Engineer | \u2014 | \u2014 | The student did not address the hard\u2011coded JWT secret key, which is a security lapse. |\n| JWT authentication flow | Junior | 0 | no_answer, no_answer, no_answer | The student was unable to explain how the JWT is verified or handled when expired or tampered. |\n| Fine calculation logic | Junior | \u2014 | \u2014 | The student did not discuss the fine calculation logic, leaving that area unassessed. |\n\n## Weak spots\n### Password hashing weakness \u2014 `app/auth.py`\nStudent\u2019s answers omitted the lack of a salt and the consequences of identical hashes, and they failed to explain how the lack of salt exposes the system to dictionary attacks.\n> **Q1 professor:** On `auth.py`: How does your current hash_password implementation protect against dictionary attacks, and what would be the effect of adding a per\u2011user salt to this function?\n> **Q1 student:** It's secure because we hash passwords and use JWT.\n> **Q3 engineer:** I'd extend, Engineer \u2014 How does get_current_user validate token expiration, and what could an attacker gain if expired tokens are accepted?\n> **Q3 student:** I think I've said what I know about that.\n> **Q4 engineer:** In get_current_user, how is the JWT\u2019s exp claim checked, and what would an attacker gain if expired tokens were still accepted?\n> **Q4 student:** I think I've said what I know about that.\n\n### JWT authentication gap \u2014 `app/auth.py`\nStudent gave no substantive explanation of how JWT signatures are verified, how expiration is checked, or what happens when tokens are expired or tampered.\n> **Q5 junior:** In get_current_user, how does the code verify the JWT\u2019s integrity and read the user data, and what happens if the token is invalid or expired?\n> **Q5 student:** I think I've said what I know about that.\n> **Q6 junior:** In app/auth.py:get_current_user, what library call checks the token\u2019s signature, and how does the code handle a token that is invalid or has passed its expiration?\n> **Q6 student:** I think I've said what I know about that.\n> **Q7 junior:** On `auth.py`: In get_current_user, which library function actually verifies the JWT signature, and how does the code react if that function raises an exception because the token is expired or tampered with?\n> **Q7 student:** I think I've said what I know about that.\n\n### SQL injection oversight \u2014 `app/routes/books.py`\nStudent\u2019s initial responses did not identify the injection risk or explain how parameterization mitigates it, and they failed to discuss the importance of proper quoting.\n> **Q8 professor:** In the search_books endpoint you interpolate the query string directly into a SQL statement; what injection vulnerability does this expose, and how could you refactor the code to eliminate it?\n> **Q8 student:** It searches the books table and returns results.\n> **Q10 junior:** I'd push back, Junior \u2014 could you explain why parameterizing the query actually prevents the injection, and what would happen if the placeholder is used incorrectly in the SQL statement?\n> **Q10 student:** I think I've said what I know about that.\n> **Q11 junior:** On `books.py`: In the parameterized query, what would happen if you omitted the surrounding quotes around the placeholder, and why is that important?\n> **Q11 student:** I think I've said what I know about that.\n\n### Concurrency vulnerability \u2014 `app/routes/loans.py`\nStudent claims double\u2011borrowing is safe based on tests, but the code lacks transaction isolation, and the test does not simulate concurrent access, leaving a real race condition.\n> **Q12 engineer:** If two students hit borrow_book for the same copy_id at the same millisecond, what race condition could occur, and how would you modify the SQL to prevent double\u2011borrowing?\n> **Q12 student:** It's safe, my tests cover double-borrowing: test_borrow_twice_returns_409 passes.\n\n## Test evidence (sandbox)\nNo claims were checked against the tests in this session.\n\n## Unanswered questions\n- Q4 (Engineer, `app/auth.py:get_current_user`): In get_current_user, how is the JWT\u2019s exp claim checked, and what would an attacker gain if expired tokens were still accepted?\n  - Student: _I think I've said what I know about that._\n- Q5 (Junior, `app/auth.py:get_current_user`): In get_current_user, how does the code verify the JWT\u2019s integrity and read the user data, and what happens if the token is invalid or expired?\n  - Student: _I think I've said what I know about that._\n- Q6 (Junior, `app/auth.py`): In app/auth.py:get_current_user, what library call checks the token\u2019s signature, and how does the code handle a token that is invalid or has passed its expiration?\n  - Student: _I think I've said what I know about that._\n- Q7 (Junior, `app/auth.py`): On `auth.py`: In get_current_user, which library function actually verifies the JWT signature, and how does the code react if that function raises an exception because the token is expired or tampered with?\n  - Student: _I think I've said what I know about that._\n- Q10 (Junior, `app/routes/books.py`): I'd push back, Junior \u2014 could you explain why parameterizing the query actually prevents the injection, and what would happen if the placeholder is used incorrectly in the SQL statement?\n  - Student: _I think I've said what I know about that._\n- Q11 (Junior, `app/routes/books.py`): On `books.py`: In the parameterized query, what would happen if you omitted the surrounding quotes around the placeholder, and why is that important?\n  - Student: _I think I've said what I know about that._\n\n## Study plan\n1. **Add Salt & Verify Expiration** (60 min) \u2014 `app/auth.py`: Rewrite hash_password to include a per\u2011user salt and modify get_current_user to explicitly check the exp claim, raising an HTTPException if expired.\n2. **Secure Secret Key** (15 min) \u2014 `app/auth.py`: Move SECRET_KEY into an environment variable and load it during startup, ensuring the key is not hard\u2011coded.\n3. **Parameterize Search** (30 min) \u2014 `app/routes/books.py`: Rewrite search_books to use a parameterized query with LIKE ? and a bound parameter for the query string.\n4. **Guard Borrow Concurrency** (45 min) \u2014 `app/routes/loans.py`: Wrap the borrow_book logic in an explicit transaction and use SELECT ... FOR UPDATE or an atomic UPDATE to prevent race conditions.\n5. **Write Concurrency Tests** (60 min) \u2014 `tests/test_loans.py`: Add pytest tests that spawn multiple threads or async tasks attempting to borrow the same copy_id concurrently and assert only one succeeds.\n\n## Summary for recruiters\nThe student demonstrates awareness of password hashing basics, correctly identifies the need for per\u2011user salts, and can recognize SQL injection risks in the books search endpoint. However, they cannot explain JWT token verification, expiration handling, or the hard\u2011coded secret key, indicating a gap in authentication security. In the borrowing logic, the student believes double\u2011borrowing is prevented, yet the code lacks proper isolation and the tests do not cover concurrent requests. The repository\u2019s test coverage is moderate, with clear failures in concurrency and authentication edge cases.",
+ "persona": "mixed",
+ "mode": "groq:openai/gpt-oss-120b",
+ "seconds": 463,
+ "metrics": {
+  "questions": 12,
+  "avg_words": 25.8,
+  "max_words": 32,
+  "over_35_words_pct": 0,
+  "multi_question_pct": 0,
+  "near_duplicate_pairs": 0,
+  "invalid_refs": 0,
+  "sandbox_runs": 0
+ },
+ "checks": [],
+ "events": [
+  {
+   "speaker": "moderator",
+   "message": "Reading your project and planning the panel\u2026",
+   "reasoning": "Moderator is assigning topics so examiners don't overlap.",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:09Z",
+   "t": 0.0
+  },
+  {
+   "speaker": "moderator",
+   "message": "Welcome to your viva. The Professor will ask about password hashing choice and search query injection risk; the Engineer will ask about borrow concurrency edge case and JWT secret management; the Junior will ask about JWT authentication flow and fine calculation logic.",
+   "reasoning": "Professor \u2192 app/auth.py: Hard\u2011coded SHA256 without salt weakens password security. | Professor \u2192 app/routes/books.py: Dynamic LIKE query exposes the API to SQL injection. | Engineer \u2192 app/routes/loans.py: Without proper transaction isolation, two concurrent requests may borrow the same copy. | Engineer \u2192 app/auth.py: Hard\u2011coded secret is insecure and makes token revocation impossible. | Junior \u2192 app/auth.py: Explain how the token is validated and user info is extracted. | Junior \u2192 app/services/fines.py: Describe how late days are turned into a charge capped at max fine.",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:12Z",
+   "t": 2.4
+  },
+  {
+   "speaker": "professor",
+   "message": "On `auth.py`: How does your current hash_password implementation protect against dictionary attacks, and what would be the effect of adding a per\u2011user salt to this function?",
+   "reasoning": "The student must explain the weakness of unsalted SHA256 and the benefits of salting, showing design understanding.",
+   "file_ref": "app/auth.py",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:13Z",
+   "t": 3.7
+  },
+  {
+   "speaker": "student",
+   "message": "It's secure because we hash passwords and use JWT.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:13Z",
+   "t": 3.7
+  },
+  {
+   "speaker": "professor",
+   "message": "What vulnerability does hash_password expose if no salt is used, and how would adding a unique salt per user mitigate it?",
+   "reasoning": "[weak] The answer does not explain the lack of salt or its impact; it merely states hashing and JWT. It does not match the code\u2019s weak hash implementation. \u2192 The response was incomplete; a deeper question is needed to assess understanding of salt benefits.",
+   "file_ref": "app/auth.py:hash_password",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:19Z",
+   "t": 10.3
+  },
+  {
+   "speaker": "student",
+   "message": "hash_password is plain sha256 with no salt, so identical passwords give identical hashes and it's fast to brute force; bcrypt or argon2 with a per-user salt fixes it. SECRET_KEY is hard-coded, it should come from an environment variable.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:19Z",
+   "t": 10.3
+  },
+  {
+   "speaker": "engineer",
+   "message": "I'd extend, Engineer \u2014 How does get_current_user validate token expiration, and what could an attacker gain if expired tokens are accepted?",
+   "reasoning": "Professor rated this strong. Engineer [extend]: Need to probe token validation beyond hashing.",
+   "file_ref": "app/auth.py:get_current_user",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:56Z",
+   "t": 46.9
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:50:56Z",
+   "t": 46.9
+  },
+  {
+   "speaker": "engineer",
+   "message": "In get_current_user, how is the JWT\u2019s exp claim checked, and what would an attacker gain if expired tokens were still accepted?",
+   "reasoning": "[weak] The student gave no substantive answer; it neither explains that get_current_user does not check expiration nor the consequences of accepting expired tokens, which the code indeed omits. \u2192 The answer was incomplete; a deeper question probes the missing expiration logic.",
+   "file_ref": "app/auth.py:get_current_user",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:51:24Z",
+   "t": 74.7
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:51:24Z",
+   "t": 74.7
+  },
+  {
+   "speaker": "moderator",
+   "message": "Junior, over to you.",
+   "reasoning": "Engineer judged the last answer no_answer: The student failed to address how expiration is checked and the risks of accepting expired tokens. Topic closed; Junior has 2 topic(s) left.",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:51:47Z",
+   "t": 97.7
+  },
+  {
+   "speaker": "junior",
+   "message": "In get_current_user, how does the code verify the JWT\u2019s integrity and read the user data, and what happens if the token is invalid or expired?",
+   "reasoning": "Need to probe understanding of token decoding, claim extraction, error handling and expiration checks.",
+   "file_ref": "app/auth.py:get_current_user",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:51:57Z",
+   "t": 108.1
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:51:57Z",
+   "t": 108.1
+  },
+  {
+   "speaker": "junior",
+   "message": "In app/auth.py:get_current_user, what library call checks the token\u2019s signature, and how does the code handle a token that is invalid or has passed its expiration?",
+   "reasoning": "[no_answer] The student gave no explanation of how get_current_user verifies JWT integrity, reads user data, or handles invalid/expired tokens, so the answer does not match the code. \u2192 The answer was missing; a deeper question is needed to probe understanding of JWT verification and error handling.",
+   "file_ref": "app/auth.py",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:52:13Z",
+   "t": 123.4
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:52:13Z",
+   "t": 123.4
+  },
+  {
+   "speaker": "junior",
+   "message": "On `auth.py`: In get_current_user, which library function actually verifies the JWT signature, and how does the code react if that function raises an exception because the token is expired or tampered with?",
+   "reasoning": "[no_answer] The student provided no explanation; the answer does not match the code\u2019s JWT verification logic. \u2192 The student gave no answer, so a more focused question is needed to probe understanding.",
+   "file_ref": "app/auth.py",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:52:22Z",
+   "t": 133.3
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:52:22Z",
+   "t": 133.3
+  },
+  {
+   "speaker": "moderator",
+   "message": "Professor, over to you.",
+   "reasoning": "Junior judged the last answer no_answer: The student did not provide any explanation of how get_current_user verifies the JWT signature or how the code handles invalid or expired tokens, so the answer does not match the code. Topic closed; Professor has 1 topic(s) left.",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:52:45Z",
+   "t": 156.1
+  },
+  {
+   "speaker": "professor",
+   "message": "In the search_books endpoint you interpolate the query string directly into a SQL statement; what injection vulnerability does this expose, and how could you refactor the code to eliminate it?",
+   "reasoning": "Highlighting the dynamic query risk to test the student\u2019s understanding of SQL injection and safe query construction.",
+   "file_ref": "app/routes/books.py:search_books",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:53:33Z",
+   "t": 204.1
+  },
+  {
+   "speaker": "student",
+   "message": "It searches the books table and returns results.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:53:33Z",
+   "t": 204.1
+  },
+  {
+   "speaker": "professor",
+   "message": "Given that search_books interpolates the query directly, what specific SQL injection can an attacker exploit, and how would you rewrite the statement to use a parameterized query?",
+   "reasoning": "[weak] The answer only restates the function\u2019s purpose; it does not identify the SQL injection risk or propose a mitigation, so it does not match the code\u2019s flaw. \u2192 The answer was incomplete; a deeper question is needed to probe understanding.",
+   "file_ref": "app/routes/books.py:search_books",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:53:56Z",
+   "t": 227.2
+  },
+  {
+   "speaker": "student",
+   "message": "search_books builds SQL with an f-string, so q goes straight into the query and ' OR 1=1 -- injects. It should use LIKE ? with '%'+q+'%' as a parameter.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:53:56Z",
+   "t": 227.2
+  },
+  {
+   "speaker": "junior",
+   "message": "I'd push back, Junior \u2014 could you explain why parameterizing the query actually prevents the injection, and what would happen if the placeholder is used incorrectly in the SQL statement?",
+   "reasoning": "Professor rated this strong. Junior [extend]: The student identified the vulnerability and suggested a fix, but didn't detail why parameterization works or potential pitfalls if misused.",
+   "file_ref": "app/routes/books.py",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:54:36Z",
+   "t": 267.1
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:54:36Z",
+   "t": 267.1
+  },
+  {
+   "speaker": "junior",
+   "message": "On `books.py`: In the parameterized query, what would happen if you omitted the surrounding quotes around the placeholder, and why is that important?",
+   "reasoning": "[no_answer] The student gave no explanation, simply repeating the previous statement, so it does not match the code\u2019s behavior regarding parameterized queries. \u2192 The answer was empty; a deeper, focused question is needed to probe understanding of SQL parameter syntax.",
+   "file_ref": "app/routes/books.py",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:56:06Z",
+   "t": 356.5
+  },
+  {
+   "speaker": "student",
+   "message": "I think I've said what I know about that.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:56:06Z",
+   "t": 356.5
+  },
+  {
+   "speaker": "moderator",
+   "message": "Engineer, over to you.",
+   "reasoning": "Junior judged the last answer no_answer: The student gave no explanation about parameterization or the significance of quotes, so the answer does not match the code\u2019s behavior. Topic closed; Engineer has 2 topic(s) left.",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:56:33Z",
+   "t": 383.5
+  },
+  {
+   "speaker": "engineer",
+   "message": "If two students hit borrow_book for the same copy_id at the same millisecond, what race condition could occur, and how would you modify the SQL to prevent double\u2011borrowing?",
+   "reasoning": "The question probes the concrete concurrency flaw in borrow_book and asks for a specific database\u2011level fix.",
+   "file_ref": "app/routes/loans.py:borrow_book",
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:56:57Z",
+   "t": 407.4
+  },
+  {
+   "speaker": "student",
+   "message": "It's safe, my tests cover double-borrowing: test_borrow_twice_returns_409 passes.",
+   "reasoning": "",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:56:57Z",
+   "t": 407.4
+  },
+  {
+   "speaker": "moderator",
+   "message": "That's the end of the viva. Thank you \u2014 your report is being prepared.",
+   "reasoning": "Question limit (12) reached. 12 questions answered, 2 cross-challenge(s).",
+   "file_ref": null,
+   "tool_used": null,
+   "timestamp": "2026-10-19T21:57:32Z",
+   "t": 442.6
+  }
+ ]
+}

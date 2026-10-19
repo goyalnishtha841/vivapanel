@@ -26,6 +26,17 @@ Each run is logged to `runs/*.jsonl` in the shared Event format. `VIVA_DEBUG=1` 
 
 **Groq free tier note:** 8,000 tokens/minute per model. A panel turn sends ~2–3k tokens, so the Junior and the cross-challenge checks run on `gpt-oss-20b` (its own budget) and the Professor/Engineer on `gpt-oss-120b`. Expect occasional 10–30 s waits on the free tier.
 
+## Evals
+
+```bash
+.venv/bin/python -m agents.eval edge    # scripted edge-case student, checks verdicts (7 cases)
+.venv/bin/python -m agents.eval mixed   # vague-then-specific student, full report
+.venv/bin/python -m agents.eval large   # 3,000-file repo, prompt-size check
+.venv/bin/python -m agents.quality runs/*.json   # question-quality metrics for any saved run
+```
+
+Latest results: [docs/evidence/day4-eval.md](docs/evidence/day4-eval.md).
+
 ## How the agents coordinate
 
 1. **Moderator** reads the project summary and assigns 2–3 non-overlapping topics to each examiner, each anchored to a real file.

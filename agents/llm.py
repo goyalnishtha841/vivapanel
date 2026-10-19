@@ -47,7 +47,12 @@ class LLMError(RuntimeError):
     pass
 
 
+class RateLimited(LLMError):
+    pass
+
+
 DEBUG = os.getenv("VIVA_DEBUG", "0") == "1"
+_big_model_exhausted = False
 
 
 def _log(model: str, schema: type, started: float, tokens_in: int, tokens_out: int) -> None:
@@ -58,10 +63,20 @@ def _log(model: str, schema: type, started: float, tokens_in: int, tokens_out: i
 
 def structured_call(system: str, user: str, schema: type[T], effort: str | None = None, fast: bool = False) -> T:
     """One model call that must return an instance of `schema`. fast=True uses the smaller model."""
-    model = FAST_MODEL if fast else MODEL
-    if PROVIDER == "groq":
-        return _groq_call(system, user, schema, effort or EFFORT, model)
-    return _anthropic_call(system, user, schema, effort or EFFORT, model)
+    global _big_model_exhausted
+    model = FAST_MODEL if fast or _big_model_exhausted else MODEL
+    call = _groq_call if PROVIDER == "groq" else _anthropic_call
+    try:
+        return call(system, user, schema, effort or EFFORT, model)
+    except RateLimited as e:
+        # The big model's budget is spent (e.g. Groq's daily token cap): finish the turn on the fast model
+        # rather than stalling the viva. It has its own, separate budget.
+        if model == FAST_MODEL:
+            raise
+        if "per day" in str(e) or "TPD" in str(e):
+            _big_model_exhausted = True  # daily cap: stop trying the big model for the rest of this process
+        print(f"  [llm] {model} rate-limited, falling back to {FAST_MODEL}: {str(e)[:120]}", file=sys.stderr)
+        return call(system, user, schema, effort or EFFORT, FAST_MODEL)
 
 
 # ---------- Anthropic ----------
@@ -86,7 +101,7 @@ def _anthropic_call(system: str, user: str, schema: type[T], effort: str, model:
             output_config={"effort": effort},
         )
     except anthropic.RateLimitError as e:
-        raise LLMError(f"rate limited: {e.message}") from e
+        raise RateLimited(f"rate limited: {e.message}") from e
     except anthropic.APIStatusError as e:
         raise LLMError(f"API error {e.status_code}: {e.message}") from e
     except anthropic.APIConnectionError as e:
@@ -152,7 +167,7 @@ def _groq_call(system: str, user: str, schema: type[T], effort: str, model: str)
                 max_completion_tokens=4000,
             )
         except groq.RateLimitError as e:
-            raise LLMError(f"rate limited: {e.message}") from e
+            raise RateLimited(f"rate limited: {e.message}") from e
         except groq.BadRequestError as e:
             # Groq validates the schema after generation; one retry usually fixes a stray field.
             if "json_validate_failed" in str(e.message) and attempt == 0:
