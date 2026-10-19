@@ -10,15 +10,24 @@ Three examiners — **Professor** (design/theory), **Industry Engineer** (scale,
 | `agents/` | A — AI/agent lead | Examiner prompts, moderator, scoring agent, shared `schemas.py` |
 | `backend/` | B — backend/tools lead | FastAPI, GitHub ingestion, tools, Docker sandbox, SQLite |
 | `frontend/` | C — frontend/voice lead | Panel UI, live transcript, reasoning sidebar, voice, report page |
-| `docs/` | everyone | [`api-contract.md`](docs/api-contract.md) — endpoints, event format, tool names |
+| `docs/` | everyone | [`api-contract.md`](docs/api-contract.md) — endpoints, event format, tool names · [`agents-interface.md`](docs/agents-interface.md) — how the backend drives the panel |
 
 ## Quick start (agents)
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env        # add ANTHROPIC_API_KEY
-.venv/bin/python -m agents.cli                 # Professor vs. the mock project
-VIVA_OFFLINE=1 .venv/bin/python -m agents.cli  # scripted, no API calls
+.venv/bin/python -m agents.cli                     # full panel vs. the mock project
+.venv/bin/python -m agents.cli --only professor     # one examiner
+VIVA_OFFLINE=1 .venv/bin/python -m agents.cli      # scripted, no API calls
 ```
 
 Each run is logged to `runs/*.jsonl` in the shared Event format.
+
+## How the agents coordinate
+
+1. **Moderator** reads the project summary and assigns 2–3 non-overlapping topics to each examiner, each anchored to a real file.
+2. The examiner holding the floor opens a topic. After each answer it **judges it against the code** (strong / partial / weak / no answer) and either **follows up** (max 2 per topic) or yields.
+3. When an examiner yields, a colleague may **cross-challenge**: disagree with the verdict or push the point into their own lane (max 2 per session).
+4. Otherwise the moderator hands the floor to the next examiner (round-robin) until topics or the 12-question budget run out.
+5. All examiners share one transcript, so they can catch the student contradicting an earlier answer.

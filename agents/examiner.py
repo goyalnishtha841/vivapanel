@@ -1,23 +1,38 @@
-"""A single examiner agent: asks one question per turn, judges the answer against the code,
-then chooses a follow-up or a new topic.
+"""Examiner agents (Professor, Engineer, Junior).
 
-Usage:
-    ex = Examiner("professor", summary)
-    event = ex.ask()               # first question
-    event = ex.ask("student reply")  # judges the reply, returns next question (or an end event)
+An examiner has no memory of its own: every call receives the panel's shared transcript, so all
+three examiners remember everything the student has said to anyone. Three moves:
+
+    open_topic(topic, transcript)        -> QuestionDecision   start a topic the moderator assigned
+    respond(transcript, follow_ups_used) -> RespondDecision    judge the answer to MY question, follow up or yield
+    consider_challenge(transcript)       -> ChallengeDecision  react to a colleague's judgement
 """
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypeVar
+
+from pydantic import BaseModel
 
 from . import llm
-from .guardrails import ensure_question_cites, file_ref_exists, is_non_answer
-from .schemas import Assessment, Event, ExaminerDecision, ProjectSummary, Speaker
+from .guardrails import ensure_question_cites, fallback_ref, file_ref_exists, is_non_answer, split_ref
+from .schemas import (
+    ChallengeDecision,
+    Examiner as Role,
+    KeyFile,
+    PlannedTopic,
+    ProjectSummary,
+    QuestionDecision,
+    RespondDecision,
+    Turn,
+)
 
 PROMPTS = Path(__file__).parent / "prompts"
 MAX_FOLLOW_UPS = 2
+TRANSCRIPT_WINDOW = 20
+DISPLAY = {"professor": "Professor", "engineer": "Engineer", "junior": "Junior"}
+
+T = TypeVar("T", bound=BaseModel)
 
 
 def render_summary(s: ProjectSummary) -> str:
@@ -36,170 +51,166 @@ def render_summary(s: ProjectSummary) -> str:
     return "\n\n".join(parts)
 
 
-def default_topics(s: ProjectSummary) -> list[str]:
-    """Until the moderator exists (Day 2), each key file is one topic."""
-    return [f"{kf.path}: {kf.purpose}" for kf in s.key_files]
+def render_transcript(transcript: list[Turn]) -> str:
+    if not transcript:
+        return "(nothing yet)"
+    shown = transcript[-TRANSCRIPT_WINDOW:]
+    lines = [f"(earlier {len(transcript) - len(shown)} turns omitted)"] if len(transcript) > len(shown) else []
+    for i, t in enumerate(shown, len(transcript) - len(shown) + 1):
+        lines.append(f"Q{i} {DISPLAY[t.examiner]} [{t.kind}, topic: {t.topic}] ({t.file_ref}): {t.question}")
+        lines.append(f"A{i} Student: {t.answer if t.answer is not None else '(awaiting)'}")
+        if t.verdict:
+            lines.append(f"   ↳ {DISPLAY[t.examiner]} judged: {t.verdict} — {t.judgement}")
+    return "\n".join(lines)
 
 
-@dataclass
-class Turn:
-    topic: str
-    file_ref: str
-    question: str
-    answer: str | None = None
-
-
-@dataclass
 class Examiner:
-    role: Speaker
-    summary: ProjectSummary
-    topics: list[str] = field(default_factory=list)
-    turns: list[Turn] = field(default_factory=list)
-    assessments: list[Assessment] = field(default_factory=list)
-    follow_ups_on_topic: int = 0
-    done: bool = False
+    def __init__(self, role: Role, summary: ProjectSummary):
+        self.role = role
+        self.summary = summary
+        self.system = "\n\n".join(
+            [
+                (PROMPTS / f"{role}.md").read_text(),
+                (PROMPTS / "common.md").read_text(),
+                "## Project under examination\n" + render_summary(summary),
+            ]
+        )
 
-    def __post_init__(self) -> None:
-        if not self.topics:
-            self.topics = default_topics(self.summary)
-        template = (PROMPTS / f"{self.role}.md").read_text()
-        self.system = template.replace("{{SUMMARY}}", render_summary(self.summary))
+    @property
+    def name(self) -> str:
+        return DISPLAY[self.role]
 
-    # ---------- public ----------
+    # ---------- moves ----------
 
-    def ask(self, last_answer: str | None = None) -> Event:
-        if self.done:
-            return self._end_event("Session already finished.")
-        if last_answer is not None and self.turns:
-            self.turns[-1].answer = last_answer
-
-        decision = self._decide()
-        self._record_assessment(decision)
-
-        if decision.action == "end":
-            self.done = True
-            return self._end_event(decision.judgement or "All assigned topics covered.")
-
-        self.follow_ups_on_topic = self.follow_ups_on_topic + 1 if decision.action == "follow_up" else 0
-        self.turns.append(Turn(decision.topic, decision.file_ref, decision.question))
-
-        reasoning = decision.reasoning
-        if decision.judgement:
-            reasoning = f"[{decision.verdict}] {decision.judgement} → {decision.reasoning}"
-        return Event(speaker=self.role, message=decision.question, reasoning=reasoning, file_ref=decision.file_ref)
-
-    # ---------- decision making ----------
-
-    def _decide(self) -> ExaminerDecision:
+    def open_topic(self, topic: PlannedTopic, transcript: list[Turn]) -> QuestionDecision:
         if llm.is_offline():
-            decision = self._offline_decide()
+            d = self._offline_open(topic)
         else:
-            decision = self._llm_decide()
-        return ensure_question_cites(decision)
-
-    def _session_state(self) -> str:
-        covered = sorted({t.topic for t in self.turns})
-        remaining = [t for t in self.topics if t not in covered]
-        lines = [
-            "## Session state",
-            f"Assigned topics: {json.dumps(self.topics)}",
-            f"Topics already asked about: {json.dumps(covered)}",
-            f"Topics not yet touched: {json.dumps(remaining)}",
-            f"Follow-ups used on the current topic: {self.follow_ups_on_topic} of {MAX_FOLLOW_UPS}"
-            + (" — limit reached, you MUST choose new_topic or end." if self.follow_ups_on_topic >= MAX_FOLLOW_UPS else ""),
-            "",
-            "## Transcript so far",
-        ]
-        if not self.turns:
-            lines.append("(none — this is your opening question; verdict must be not_applicable)")
-        for i, t in enumerate(self.turns, 1):
-            lines.append(f"Q{i} [{t.topic}] ({t.file_ref}): {t.question}")
-            lines.append(f"A{i}: {t.answer if t.answer is not None else '(awaiting)'}")
-        if self.turns:
-            lines.append("\nJudge the LAST answer against the code, then ask your next question.")
-        return "\n".join(lines)
-
-    def _llm_decide(self) -> ExaminerDecision:
-        user = self._session_state()
-        decision = llm.structured_call(self.system, user, ExaminerDecision)
-        if not file_ref_exists(decision.file_ref, self.summary):
-            retry = (
-                user
-                + f"\n\nYour previous draft cited `{decision.file_ref}`, which is NOT in the file list. "
-                "Rewrite the decision citing a path that is in the file list."
+            user = (
+                f"## Panel transcript\n{render_transcript(transcript)}\n\n"
+                f"## Your turn\nThe moderator gave you the floor to open this topic:\n"
+                f"- Topic: {topic.title}\n- Anchor: {topic.file_ref}\n- Why it matters: {topic.why}\n\n"
+                "Ask your opening question on it. If the student already said something relevant earlier, build on it."
             )
-            decision = llm.structured_call(self.system, retry, ExaminerDecision)
-        if not file_ref_exists(decision.file_ref, self.summary):
-            fallback = self.summary.key_files[0].path if self.summary.key_files else self.summary.files[0]
-            decision = decision.model_copy(update={"file_ref": fallback})
-        if self.follow_ups_on_topic >= MAX_FOLLOW_UPS and decision.action == "follow_up":
-            decision = decision.model_copy(update={"action": "new_topic"})
-        return decision
+            d = self._grounded(user, QuestionDecision, lambda d: d.file_ref, default_ref=topic.file_ref)
+        return d.model_copy(update={"question": ensure_question_cites(d.question, d.file_ref)})
 
-    def _offline_decide(self) -> ExaminerDecision:
-        """Scripted examiner for running without an API key (dev, CI, demos without network)."""
-        verdict, judgement = "not_applicable", ""
-        last = self.turns[-1] if self.turns else None
-        if last is not None:
-            verdict, judgement = _heuristic_judge(last, self.summary)
-
-        covered = {t.topic for t in self.turns}
-        remaining = [t for t in self.topics if t not in covered]
-        weak = verdict in ("weak", "partial", "no_answer")
-
-        if last is not None and weak and self.follow_ups_on_topic < MAX_FOLLOW_UPS:
-            kf = _key_file_for(last.file_ref, self.summary)
-            func = kf.functions[(self.follow_ups_on_topic + 1) % len(kf.functions)] if kf and kf.functions else None
-            ref = f"{kf.path}:{func}" if kf and func else last.file_ref
-            return ExaminerDecision(
-                verdict=verdict, judgement=judgement, action="follow_up", topic=last.topic, file_ref=ref,
-                question=f"Let's be concrete. Walk me through exactly what `{func or ref}` does, line by line, and why you wrote it that way.",
-                reasoning="Answer was not grounded in the code, so narrowing to a single function.",
+    def respond(self, transcript: list[Turn], follow_ups_used: int) -> RespondDecision:
+        last = transcript[-1]
+        if llm.is_offline():
+            d = self._offline_respond(last, follow_ups_used)
+        else:
+            limit = (
+                "You have used the follow-up limit on this topic — you MUST yield."
+                if follow_ups_used >= MAX_FOLLOW_UPS
+                else f"Follow-ups used on this topic: {follow_ups_used} of {MAX_FOLLOW_UPS}."
             )
-        if not remaining:
-            return ExaminerDecision(
-                verdict=verdict, judgement=judgement, action="end", topic=last.topic if last else "",
-                file_ref=last.file_ref if last else self.summary.files[0], question="", reasoning="All topics covered.",
+            user = (
+                f"## Panel transcript\n{render_transcript(transcript)}\n\n"
+                f"## Your turn\nThe student just answered YOUR question Q{len(transcript)}. "
+                "Judge that answer against the code. Then either follow up with a narrower, deeper question on the "
+                "same topic (when the answer was partial, weak or no_answer and digging further is worthwhile), or "
+                f"yield the floor (when the answer was strong or the topic is exhausted). {limit}"
             )
-        topic = remaining[0]
-        kf = self.summary.key_files[self.topics.index(topic) % len(self.summary.key_files)]
-        func = kf.functions[0] if kf.functions else None
-        return ExaminerDecision(
-            verdict=verdict, judgement=judgement, action="new_topic", topic=topic,
-            file_ref=f"{kf.path}:{func}" if func else kf.path,
-            question=f"In `{kf.path}`, why did you design `{func}` this way, and what alternative did you reject?",
-            reasoning=f"Opening the topic '{topic}' with a design-justification question.",
+            d = self._grounded(
+                user, RespondDecision, lambda d: d.file_ref if d.action == "follow_up" else None,
+                default_ref=last.file_ref or fallback_ref(self.summary),
+            )
+        if follow_ups_used >= MAX_FOLLOW_UPS and d.action == "follow_up":
+            d = d.model_copy(update={"action": "yield", "question": "", "file_ref": ""})
+        if d.action == "follow_up":
+            d = d.model_copy(update={"question": ensure_question_cites(d.question, d.file_ref)})
+        return d
+
+    def consider_challenge(self, transcript: list[Turn]) -> ChallengeDecision:
+        last = transcript[-1]
+        if llm.is_offline():
+            return self._offline_challenge(last)
+        user = (
+            f"## Panel transcript\n{render_transcript(transcript)}\n\n"
+            f"## Your turn\nYour colleague the {DISPLAY[last.examiner]} just judged the student's last answer as "
+            f"`{last.verdict}` and is moving on. Interject only if, from your own lane, either (a) you think that "
+            "verdict was wrong given the code (stance `disagree`), or (b) the verdict stands but the answer misses "
+            "something important that you can probe in one question (stance `extend`). Otherwise set interject to "
+            "false. Interjections should be rare and sharp — a real panel member doesn't speak just to speak."
+        )
+        d = self._grounded(
+            user, ChallengeDecision, lambda d: d.file_ref if d.interject else None,
+            default_ref=last.file_ref or fallback_ref(self.summary),
+        )
+        if d.interject:
+            d = d.model_copy(update={"message": ensure_question_cites(d.message, d.file_ref)})
+        return d
+
+    # ---------- LLM call with file_ref guardrail ----------
+
+    def _grounded(self, user: str, schema: type[T], ref_of, default_ref: str) -> T:
+        """Call the model; if it cites a file that isn't in the repo, retry once, then fall back to a real file."""
+        d = llm.structured_call(self.system, user, schema)
+        ref = ref_of(d)
+        if ref is None or file_ref_exists(ref, self.summary):
+            return d
+        retry = (
+            user + f"\n\nYour previous draft cited `{ref}`, which is NOT in the file list. "
+            "Rewrite your answer citing a path that is in the file list."
+        )
+        d = llm.structured_call(self.system, retry, schema)
+        ref = ref_of(d)
+        if ref is None or file_ref_exists(ref, self.summary):
+            return d
+        return d.model_copy(update={"file_ref": default_ref})
+
+    # ---------- offline (scripted) behaviour: no API key needed ----------
+
+    def _key_file(self, file_ref: str | None) -> KeyFile | None:
+        path = split_ref(file_ref or "")[0]
+        return next((kf for kf in self.summary.key_files if kf.path == path), None)
+
+    def _offline_open(self, topic: PlannedTopic) -> QuestionDecision:
+        path, func = split_ref(topic.file_ref)
+        target = f"`{func}` in `{path}`" if func else f"`{path}`"
+        q = {
+            "professor": f"Why did you design {target} this way, and what alternative did you reject?",
+            "engineer": f"What happens in {target} when two users hit it at the same moment, or send malicious input?",
+            "junior": f"Can you explain what {target} does, step by step, like I'm a first-year?",
+        }[self.role]
+        return QuestionDecision(file_ref=topic.file_ref, question=q, reasoning=f"Opening '{topic.title}': {topic.why}")
+
+    def _offline_respond(self, last: Turn, follow_ups_used: int) -> RespondDecision:
+        verdict, judgement = heuristic_judge(last, self._key_file(last.file_ref))
+        if verdict in ("weak", "partial", "no_answer") and follow_ups_used < MAX_FOLLOW_UPS:
+            kf = self._key_file(last.file_ref)
+            func = kf.functions[(follow_ups_used + 1) % len(kf.functions)] if kf and kf.functions else None
+            ref = f"{kf.path}:{func}" if kf and func else (last.file_ref or fallback_ref(self.summary))
+            return RespondDecision(
+                verdict=verdict, judgement=judgement, action="follow_up", file_ref=ref,
+                question=f"Let's be concrete: walk me through exactly what `{func or ref}` does and why you wrote it that way.",
+                reasoning="Answer wasn't grounded in the code, so narrowing to a single function.",
+            )
+        return RespondDecision(
+            verdict=verdict, judgement=judgement, action="yield", file_ref="", question="",
+            reasoning="Topic covered well enough." if verdict == "strong" else "Follow-up limit reached.",
         )
 
-    # ---------- bookkeeping ----------
-
-    def _record_assessment(self, decision: ExaminerDecision) -> None:
-        if not self.turns or self.turns[-1].answer is None:
-            return
-        t = self.turns[-1]
-        self.assessments.append(
-            Assessment(
-                examiner=self.role, topic=t.topic, file_ref=t.file_ref, question=t.question,
-                answer=t.answer, verdict=decision.verdict, judgement=decision.judgement,
+    def _offline_challenge(self, last: Turn) -> ChallengeDecision:
+        # Scripted rule: the Engineer pushes back on lenient 'strong' verdicts from the others.
+        if self.role == "engineer" and last.examiner != "engineer" and last.verdict == "strong":
+            ref = last.file_ref or fallback_ref(self.summary)
+            return ChallengeDecision(
+                interject=True, stance="extend",
+                message=f"I'd push the {DISPLAY[last.examiner]}'s point further. With a thousand students at once, "
+                f"what breaks first in `{split_ref(ref)[0]}`?",
+                file_ref=ref, reasoning="Answer was right on design but ignored behaviour under load.",
             )
-        )
-
-    def _end_event(self, reason: str) -> Event:
-        return Event(speaker=self.role, message="That's all from me. Thank you.", reasoning=reason)
+        return ChallengeDecision(interject=False, stance="none", message="", file_ref="", reasoning="Nothing to add.")
 
 
-def _key_file_for(file_ref: str, s: ProjectSummary):
-    path = file_ref.split(":")[0]
-    return next((kf for kf in s.key_files if kf.path == path), None)
-
-
-def _heuristic_judge(turn: Turn, s: ProjectSummary) -> tuple[str, str]:
+def heuristic_judge(turn: Turn, kf: KeyFile | None) -> tuple[str, str]:
     answer = turn.answer or ""
     if is_non_answer(answer):
         return "no_answer", "Student did not attempt an answer."
     words = answer.split()
-    kf = _key_file_for(turn.file_ref, s)
-    vocab = set()
+    vocab: set[str] = set()
     if kf:
         vocab = {f.lower() for f in kf.functions} | {w.lower().strip("(),:'\"") for w in kf.snippet.split() if len(w) > 4}
     hits = [w for w in words if w.lower().strip(".,()`'\"") in vocab]
