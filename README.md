@@ -10,7 +10,7 @@ Three examiners — **Professor** (design/theory), **Industry Engineer** (scale,
 | `agents/` | A — AI/agent lead | Examiner prompts, moderator, scoring agent, shared `schemas.py` |
 | `backend/` | B — backend/tools lead | FastAPI, GitHub ingestion, tools, Docker sandbox, SQLite |
 | `frontend/` | C — frontend/voice lead | Panel UI, live transcript, reasoning sidebar, voice, report page |
-| `docs/` | everyone | [`api-contract.md`](docs/api-contract.md) — endpoints, event format, tool names · [`agents-interface.md`](docs/agents-interface.md) — how the backend drives the panel |
+| `docs/` | everyone | [`architecture.md`](docs/architecture.md) — how the agents coordinate · [`jury-qa.md`](docs/jury-qa.md) — jury prep · [`api-contract.md`](docs/api-contract.md) — endpoints, event format, tool names · [`agents-interface.md`](docs/agents-interface.md) — how the backend drives the panel |
 
 ## Quick start (agents)
 
