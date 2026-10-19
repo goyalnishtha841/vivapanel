@@ -1,0 +1,250 @@
+[
+ {
+  "speaker": "moderator",
+  "message": "Reading your project and planning the panel\u2026",
+  "reasoning": "Moderator is assigning topics so examiners don't overlap.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:25Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Welcome to your viva. The Professor will ask about hard\u2011coded JWT secret and SQLite concurrency limits; the Engineer will ask about SQL injection risk and borrow race condition; the Junior will ask about borrow flow overview and JWT authentication flow.",
+  "reasoning": "Professor \u2192 app/auth.py: A static secret key raises concerns about key rotation and exposure in production. | Professor \u2192 app/db.py: Using SQLite without pooling may prevent the API from scaling to thousands of concurrent users. | Engineer \u2192 app/routes/books.py: The query concatenates user input directly, creating a potential injection vulnerability. | Engineer \u2192 app/routes/loans.py: Concurrent borrow requests could bypass the availability check, breaking the double\u2011borrow guarantee. | Junior \u2192 app/routes/loans.py: Explains the steps from a borrow request to database updates in plain language. | Junior \u2192 app/auth.py: Describes how a token is decoded and user information is retrieved for each request.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:28Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Can you explain why you chose to hard\u2011code the JWT SECRET_KEY in app/auth.py, and how you would handle key rotation and secret management in a production deployment?",
+  "reasoning": "Tests understanding of security implications and alternatives for secret handling.",
+  "file_ref": "app/auth.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:29Z"
+ },
+ {
+  "speaker": "student",
+  "message": "It's secure because we hash passwords and use JWT.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:29Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "How would you modify app/auth.py to load SECRET_KEY securely and support rotating keys without redeploying the service?",
+  "reasoning": "[weak] The student gave a vague claim of security without referencing the hard\u2011coded SECRET_KEY or any production\u2011grade secret management, contradicting the code's literal string. \u2192 Their answer was weak; probing practical secret handling clarifies understanding.",
+  "file_ref": "app/auth.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:46Z"
+ },
+ {
+  "speaker": "student",
+  "message": "hash_password is plain sha256 with no salt, so identical passwords give identical hashes and it's fast to brute force; bcrypt or argon2 with a per-user salt would fix it. SECRET_KEY is also hard-coded in auth.py, it should come from an environment variable.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:46Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Describe a design for rotating JWT signing keys at runtime in app/auth.py, including how you would store multiple active keys and select the correct one for verification.",
+  "reasoning": "[partial] The answer correctly identifies that SECRET_KEY should be loaded from an environment variable, but it does not explain how to support key rotation without redeploying, nor does it propose a concrete design such as key versioning or a key\u2011store lookup. \u2192 The student only partially answered; we need to probe their understanding of dynamic secret management and key versioning.",
+  "file_ref": "app/auth.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:47Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:19:47Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Engineer, over to you.",
+  "reasoning": "Professor judged the last answer no_answer: The student gave no substantive design for runtime key rotation, merely stating uncertainty, which does not address the code's hard\u2011coded SECRET_KEY. Topic closed; Engineer has 2 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:20:07Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "Looking at `search_books()` in `app/routes/books.py`: What happens if a user supplies a value like \"' OR 1=1--\" to the search endpoint, and how does your current implementation protect against or expose to SQL injection?",
+  "reasoning": "The function builds a raw SQL string with user input, so we need to see if the student knows the injection risk.",
+  "file_ref": "app/routes/books.py:search_books",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:20:32Z"
+ },
+ {
+  "speaker": "student",
+  "message": "It searches the books table and returns results.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:20:32Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "Given the f\u2011string query in `search_books`, what would be the result of sending the payload \"' OR 1=1--\" and how could you rewrite the function to prevent that injection?",
+  "reasoning": "[weak] The student did not mention the string interpolation that makes the query vulnerable; they gave a generic description that ignores the injection risk. \u2192 We need to probe the student's understanding of the concrete SQL injection flaw and a proper parameterised query.",
+  "file_ref": "app/routes/books.py:search_books",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:20:39Z"
+ },
+ {
+  "speaker": "student",
+  "message": "search_books builds the SQL with an f-string, so q goes straight into the query and someone can inject SQL like ' OR 1=1 --. It should use a parameter placeholder, LIKE ? with the value '%'+q+'%'.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:20:39Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Junior, over to you.",
+  "reasoning": "Engineer judged the last answer strong: The student correctly identified the f-string SQL injection vulnerability, described the effect of the payload, and proposed using parameterized queries with placeholders. Topic closed; Junior has 2 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:20:59Z"
+ },
+ {
+  "speaker": "junior",
+  "message": "When a student calls /borrow/5, can you walk me through each step that the borrow_book function performs, from checking availability to updating tables, in plain words?",
+  "reasoning": "We need to test the student\u2019s understanding of the entire borrow flow and database state changes.",
+  "file_ref": "app/routes/loans.py:borrow_book",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:00Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I don't know",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:00Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Professor, over to you.",
+  "reasoning": "Junior judged the last answer no_answer: The student gave no explanation, so it doesn't match the code or help a beginner. Topic closed; Professor has 1 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:01Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Given that app/db.py opens a new SQLite connection per request without pooling, how does this affect concurrent request handling and what architectural changes would you propose to support thousands of simultaneous users?",
+  "reasoning": "Evaluates understanding of SQLite's concurrency limits and need for connection pooling or alternative DB for scalability.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:26Z"
+ },
+ {
+  "speaker": "student",
+  "message": "SQLite is simple and fast.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:26Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Looking at `app/db.py`: Explain how opening a new SQLite connection per request limits handling thousands of concurrent users and propose a concrete change, such as connection pooling or a different DB, to improve scalability.",
+  "reasoning": "[weak] The student gave a generic comment that SQLite is simple and fast, failing to address the per\u2011request connection model, its impact on concurrency, or any concrete architectural improvements. \u2192 The answer was weak; a focused follow\u2011up is needed to assess the student's understanding of concurrency limits and viable architectural solutions.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:36Z"
+ },
+ {
+  "speaker": "student",
+  "message": "get_connection opens a new sqlite3 connection on every call and never closes it. SQLite only allows one writer at a time, so with many students the writes queue up on the file lock; for real scale I'd move to Postgres with a connection pool.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:36Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "How could you modify app/db.py to reuse SQLite connections, e.g., via a simple connection pool or thread\u2011local storage, while ensuring connections are properly closed after request handling?",
+  "reasoning": "[partial] The answer notes the per\u2011request connection and SQLite's single\u2011writer limitation and suggests moving to Postgres, but does not detail how to implement connection pooling or reuse within SQLite. \u2192 A deeper design for SQLite connection reuse is needed to assess the student's understanding of practical scalability improvements.",
+  "file_ref": "app/db.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:48Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:48Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "Engineer, over to you.",
+  "reasoning": "Professor judged the last answer no_answer: The student gave no substantive answer, merely stating uncertainty, which does not address how to modify app/db.py for connection reuse or proper cleanup. Topic closed; Engineer has 1 topic(s) left.",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:21:49Z"
+ },
+ {
+  "speaker": "engineer",
+  "message": "If two students request /borrow/7 at the same millisecond, what does your current `borrow_book` implementation do, and can both requests succeed?",
+  "reasoning": "Tests may not cover simultaneous requests, revealing a potential race condition that breaks double\u2011borrow protection.",
+  "file_ref": "app/routes/loans.py:borrow_book",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:22:10Z"
+ },
+ {
+  "speaker": "student",
+  "message": "borrow_book reads available, then updates it in a separate statement, so two requests can both see available=1 and both borrow. I'd make it one atomic UPDATE copies SET available=0 WHERE id=? AND available=1 and check rowcount.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:22:10Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Looking at `app/routes/loans.py`: I'd extend on that, Professor \u2014 Could you explain how you\u2019d wrap the atomic update in a transaction to guarantee isolation, and how SQLite\u2019s default isolation level handles concurrent writes?",
+  "reasoning": "Engineer rated this strong. Professor [extend]: Student identified race condition but didn't mention transaction usage or SQLite locking semantics; probing ensures depth.",
+  "file_ref": "app/routes/loans.py",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:22:24Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:22:24Z"
+ },
+ {
+  "speaker": "professor",
+  "message": "Explain how you would wrap the atomic UPDATE in a transaction in borrow_book, and what SQLite's default isolation level means for concurrent writes.",
+  "reasoning": "[no_answer] The student gave no answer, merely stating uncertainty, so it does not address the required explanation of transaction handling or SQLite isolation. \u2192 The student did not address the transaction and isolation details, so a focused follow\u2011up is needed.",
+  "file_ref": "app/routes/loans.py:borrow_book",
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:22:38Z"
+ },
+ {
+  "speaker": "student",
+  "message": "I already explained that part, I am not sure what else to add.",
+  "reasoning": "",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:22:38Z"
+ },
+ {
+  "speaker": "moderator",
+  "message": "That's the end of the viva. Thank you \u2014 your report is being prepared.",
+  "reasoning": "Question limit (12) reached. 12 questions answered, 1 cross-challenge(s).",
+  "file_ref": null,
+  "tool_used": null,
+  "timestamp": "2026-10-19T21:23:12Z"
+ }
+]
