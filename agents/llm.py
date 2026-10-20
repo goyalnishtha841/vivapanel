@@ -254,7 +254,7 @@ def _groq_call(system: str, user: str, schema: type[T], effort: str, model: str)
 #
 #     decision = yield from agent_loop(system, user, tools, execute, RespondDecision)
 
-from collections.abc import Callable, Generator  # noqa: E402
+from collections.abc import Generator  # noqa: E402
 from dataclasses import dataclass  # noqa: E402
 
 

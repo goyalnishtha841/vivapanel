@@ -12,7 +12,9 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
+![Tests](https://img.shields.io/badge/tests-75%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
+[![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
 **[▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com)**
 
@@ -34,7 +36,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 - [Getting started](#getting-started)
 - [Configuration](#configuration)
 - [API overview](#api-overview)
-- [Evals](#evals)
+- [Tests and evals](#tests-and-evals)
 - [Limitations](#limitations)
 - [Roadmap](#roadmap)
 - [Team](#team)
@@ -90,6 +92,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
+| Tests and CI | ✅ 75 tests (unit, panel rules, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | 🚧 Docker sandbox in progress; until then real repos are read but **never executed** (the sample project uses recorded test results) |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -191,6 +194,7 @@ viva-panel/
 │   └── eval.py, quality.py, profile_tokens.py
 ├── backend/app/            # FastAPI API, GitHub ingestion, sessions, SSE
 ├── frontend/               # React app: landing, live panel, report
+├── tests/                  # unit, panel-rule and API tests (pytest)
 ├── docs/                   # architecture, API contract, jury Q&A, deploy, evidence
 ├── Dockerfile, render.yaml # one-container deploy
 └── requirements.txt
@@ -271,7 +275,28 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ---
 
-## Evals
+## Tests and evals
+
+**Tests** pin down everything the architecture says code guarantees. They run offline in about a second:
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q                      # 75 tests
+ruff check agents backend tests
+```
+
+| Suite | What it proves |
+|---|---|
+| `test_panel_rules.py` | Swaps the LLM for one that **breaks every rule on purpose** (invented files, run-on questions, endless follow-ups and challenges, "strong" for everything, misread test results) and checks the panel still keeps every limit: 12 questions, 2 follow-ups, 2 challenges on the same file, 1 test run, real file references, enforced edge-case verdicts |
+| `test_scoring.py` | Verdict weights, later answers weighing more, the contradiction penalty, readiness thresholds, and that invented turns and files in the model's narrative are dropped |
+| `test_guardrails.py` | Answer classification (empty, "idk", clarify, injection, one word, long paste), file and function reference checks, question-quality checks |
+| `test_llm_routing.py` | The fallback chain: per-minute limits move to the next model, daily caps are remembered, other errors aren't retried, strict schemas are closed |
+| `test_repo_tools.py` | The Engineer's tools can't read outside the repo (`../`, absolute paths, symlinks); GitHub link parsing rejects anything else |
+| `test_api.py` | A full viva over HTTP, event ordering for stream resume, 400/404/409/422/429 responses, the daily cap |
+
+We checked that the suite catches regressions: disabling the edge-case enforcement or the follow-up cap makes it fail.
+
+**Evals** run whole sessions with scripted students:
 
 ```bash
 .venv/bin/python -m agents.eval edge     # scripted edge-case student, checks every verdict
@@ -282,6 +307,8 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 ```
 
 Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/evidence/](docs/evidence/).
+
+[CI](.github/workflows/ci.yml) runs lint, the tests, the offline evals, the frontend build and a Docker smoke test on every push to `main` and every pull request.
 
 ---
 
@@ -315,6 +342,7 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] React UI: landing, live panel with voice, report with PDF export
 - [x] Token optimisation (−35%) and a Gemini backup with cross-provider fallback
 - [x] Deployed as one Docker container
+- [x] Test suite (75 tests) and CI on every push
 
 **Next**
 

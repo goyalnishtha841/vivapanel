@@ -1,0 +1,91 @@
+"""The HTTP API end to end, offline: start a viva on the sample project, answer every question, get the report."""
+import time
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.app import config, main, store
+
+SAMPLE = "https://github.com/example-student/campus-library-api"
+
+
+@pytest.fixture
+def client():
+    return TestClient(main.app)
+
+
+def wait_for(client, sid, statuses, timeout=15):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        st = client.get(f"/session/{sid}").json()["status"]
+        if st in statuses:
+            return st
+        time.sleep(0.05)
+    raise AssertionError(f"session {sid} stuck in {st}")
+
+
+def test_health(client):
+    r = client.get("/health")
+    assert r.status_code == 200 and r.json() == {"status": "ok", "llm": "offline"}
+
+
+def test_full_viva_over_http(client):
+    sid = client.post("/session", json={"repo_url": SAMPLE}).json()["session_id"]
+    assert wait_for(client, sid, {"awaiting", "error"}) == "awaiting"
+    assert client.get(f"/report/{sid}").status_code == 409  # not finished yet
+
+    answers = 0
+    while (st := wait_for(client, sid, {"awaiting", "done", "error"})) == "awaiting":
+        r = client.post("/answer", json={"session_id": sid, "answer": "It reads then updates in two queries."})
+        assert r.status_code == 200, r.text
+        answers += 1
+        assert answers <= 20
+    assert st == "done"
+
+    report = client.get(f"/report/{sid}")
+    assert report.status_code == 200
+    body = report.json()
+    assert body["questions_asked"] == answers and 0 <= body["overall_score"] <= 100
+
+    events = [e for _, e in store.events_after(sid, 0)]
+    seqs = [s for s, _ in store.events_after(sid, 0)]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)  # ordered, no gaps reused
+    assert store.events_after(sid, seqs[-1]) == []  # Last-Event-ID resume returns nothing new
+    assert any('"speaker":"student"' in e.replace(" ", "") for e in events)
+
+
+def test_answer_while_panel_is_busy_is_rejected(client):
+    sid = client.post("/session", json={"repo_url": SAMPLE}).json()["session_id"]
+    wait_for(client, sid, {"awaiting"})
+    store.update(sid, status="thinking")
+    r = client.post("/answer", json={"session_id": sid, "answer": "x"})
+    assert r.status_code == 409 and r.json()["error"] == "panel_busy"
+
+
+@pytest.mark.parametrize("path, method", [("/session/nope", "get"), ("/report/nope", "get"), ("/stream/nope", "get")])
+def test_unknown_session_is_404(client, path, method):
+    r = getattr(client, method)(path)
+    assert r.status_code == 404 and r.json()["error"] == "session_not_found"
+
+
+def test_answer_to_unknown_session_is_404(client):
+    r = client.post("/answer", json={"session_id": "nope", "answer": "x"})
+    assert r.status_code == 404
+
+
+@pytest.mark.parametrize("url", ["not a url", "https://gitlab.com/a/b", "github.com/a"])
+def test_invalid_repo_link_is_400(client, url):
+    r = client.post("/session", json={"repo_url": url})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_url"
+
+
+def test_oversized_answer_is_rejected(client):
+    r = client.post("/answer", json={"session_id": "x", "answer": "a" * 9000})
+    assert r.status_code == 422
+
+
+def test_daily_session_cap(client, monkeypatch):
+    monkeypatch.setattr(config, "DAILY_SESSION_LIMIT", store.sessions_since(time.time() - 86400) + 1)
+    assert client.post("/session", json={"repo_url": SAMPLE}).status_code == 200
+    r = client.post("/session", json={"repo_url": SAMPLE})
+    assert r.status_code == 429 and r.json()["error"] == "daily_limit"

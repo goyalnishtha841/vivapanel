@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+extend-exclude = ["agents/mock_data"]  # the sample student project is flawed on purpose
+
+[tool.ruff.lint]
+# pyflakes + pycodestyle errors + bugbear: real problems, not style debates
+select = ["F", "E", "W", "B"]
+ignore = ["E501", "B008"]  # long prompt strings; FastAPI's Header() defaults

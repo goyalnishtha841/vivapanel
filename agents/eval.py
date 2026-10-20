@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import llm
-from .examiner import Examiner, render_summary
+from .examiner import Examiner
 from .guardrails import classify_answer
 from .panel import Panel
 from .quality import metrics

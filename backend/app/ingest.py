@@ -226,8 +226,8 @@ def snippet(text: str, functions: list[str]) -> str:
 
 
 def _offline_draft(readme: str, key: list[str], root: Path) -> SummaryDraft:
-    first = next((l.strip("# ").strip() for l in readme.splitlines() if l.strip()), "A software project.")
-    claims = [l.strip("-* ").strip() for l in readme.splitlines() if l.strip().startswith(("-", "*"))][:6]
+    first = next((line.strip("# ").strip() for line in readme.splitlines() if line.strip()), "A software project.")
+    claims = [line.strip("-* ").strip() for line in readme.splitlines() if line.strip().startswith(("-", "*"))][:6]
     files = []
     for f in key:
         names = re.findall(r"(?:def|class|function)\s+([A-Za-z_]\w*)", read_text(root / f))

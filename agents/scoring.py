@@ -93,7 +93,7 @@ def _topic_scores(state: PanelState) -> list[TopicScore]:
             continue
         # Later answers count more: a student who recovers after a follow-up has shown understanding.
         weights = range(1, len(verdicts) + 1)
-        conf = sum(VERDICT_WEIGHT[v] * w for v, w in zip(verdicts, weights)) / sum(weights) * 100
+        conf = sum(VERDICT_WEIGHT[v] * w for v, w in zip(verdicts, weights, strict=True)) / sum(weights) * 100
         if title in contradicted:
             conf -= CONTRADICTED_PENALTY
         scores.append(TopicScore(
