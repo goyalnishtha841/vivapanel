@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -446,13 +447,17 @@ def _anthropic_agent(system, user, tools, submit, execute, final, max_tool_calls
 # ---------- Gemini ----------
 
 _gemini = None
+GEMINI_TIMEOUT_MS = int(os.getenv("GEMINI_TIMEOUT_MS", "45000"))
 
 
 def _gemini_client():
     global _gemini
     if _gemini is None:
         from google import genai
-        _gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        from google.genai import types
+        # Fail fast instead of the SDK's own long backoff: the fallback chain is the retry.
+        _gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options=types.HttpOptions(
+            timeout=GEMINI_TIMEOUT_MS, retry_options=types.HttpRetryOptions(attempts=1)))
     return _gemini
 
 
@@ -460,8 +465,11 @@ def _gemini_errors(e: Exception) -> LLMError:
     from google.genai import errors
     if isinstance(e, errors.APIError):
         if e.code == 429 or (isinstance(e, errors.ServerError) and e.code in (500, 503, 504)):
-            return RateLimited(f"gemini {e.code}: {e.message}")
+            quota = " ".join(re.findall(r"quotaId'?: '([^']+)'", repr(e.details)))  # e.g. ...PerDay... -> daily cap
+            return RateLimited(f"gemini {e.code}: {e.message} {quota}".strip())
         return LLMError(f"gemini {e.code}: {e.message}")
+    if "timeout" in type(e).__name__.lower() or "timed out" in str(e).lower():
+        return RateLimited(f"gemini timed out after {GEMINI_TIMEOUT_MS // 1000}s")
     return LLMError(f"gemini: {type(e).__name__}: {e}")
 
 

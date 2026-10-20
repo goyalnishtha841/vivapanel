@@ -44,5 +44,16 @@ in this), 2,500–3,000 for the plan, summary and report, instead of 4,000 for e
 
 - Offline evals (`agents.eval edge | mixed | large`) all pass after the changes.
 - Every rule from the original prompts is still there; only wording was shortened.
-- **Not yet done:** the live edge-case eval on the new prompts. Both Groq models hit their daily limit before it
-  could run; it will be re-run on the Gemini backup.
+- **Live edge-case eval on the new prompts: 7/7 pass** (`docs/evidence/live-edge-eval-gemini-fallback.json`, 20 Oct 2026). Groq's limits
+  ran out partway through, so the session moved to the Gemini backup; that also exercised the Engineer's tool loop on
+  Gemini (read two files, ran the tests, reported the failing early-return test).
+  - 12 questions, average 20 words, max 35, no multi-part questions, no near-duplicates, no invalid file references.
+  - Provider-reported usage: **43,856 input + 4,087 output tokens over 22 calls** (the stand-in profile above
+    assumes more follow-ups and challenges, so it's an upper bound).
+  - Clarify, don't-know, one-word, empty, injection, off-topic and pasted-code answers were all handled as intended.
+
+## Gemini latency
+
+In that run two Gemini calls took 90–125 s (the SDK was backing off on per-minute limits). The Gemini client now has
+a 45 s timeout and no SDK-level retries, so a slow or throttled call moves to the next model instead of stalling the
+viva.

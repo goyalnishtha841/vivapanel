@@ -76,7 +76,7 @@ things a jury, a student or a recruiter needs to trust.
 
 ## 4. The Engineer's tool loop
 
-`agents/llm.py:agent_loop` is a standard function-calling loop that works on both Groq and Claude:
+`agents/llm.py:agent_loop` is a standard function-calling loop that works on Groq, Gemini and Claude:
 
 ```mermaid
 sequenceDiagram
@@ -128,15 +128,17 @@ validates those and attaches the exact quotes. The model cannot invent evidence.
 
 ## 8. Models and cost
 
-| | Groq (current) | Claude (supported) |
-|---|---|---|
-| Professor, Engineer, moderator, scoring | `openai/gpt-oss-120b` | `claude-opus-5-5` |
-| Junior, cross-challenge checks | `openai/gpt-oss-20b` | same model |
-| Tokens per call | ~1.6–3.5k in, ~100–300 out | similar |
-| One 12-question session | ~53k input tokens over ~30 calls, measured with `agents.profile_tokens` (was 81k before optimisation) | — |
-| Free-tier limit | 8k tokens/min and 200k tokens/day per model | — |
+| | Groq (primary) | Gemini (backup) | Claude (supported) |
+|---|---|---|---|
+| Professor, Engineer, moderator, scoring | `openai/gpt-oss-120b` | `gemini-flash-latest` | `claude-opus-5-5` |
+| Junior, cross-challenge checks | `openai/gpt-oss-20b` | `gemini-flash-lite-latest` | same model |
+| Tokens per call | ~1.6–3.5k in, ~100–300 out | similar | similar |
+| One 12-question session | ~53k input tokens over ~30 calls, measured with `agents.profile_tokens` (was 81k before optimisation) | same prompts | — |
+| Free-tier limit | 8k tokens/min and 200k tokens/day per model | per-minute and per-day request limits per model | — |
 
-If the big model is rate-limited, the call moves to the small model; after a daily cap, it stays there. Switching
+Every call walks a fallback chain: primary big model → primary small model → Gemini flash → Gemini flash-lite (fast
+calls start at the small models). Rate limits, server errors and calls slower than 45 s move to the next model; a
+model that hits a daily cap is skipped for the rest of the day. A session only stops if every model is out. Switching
 provider is one line in `.env` (`VIVA_PROVIDER`).
 
 ## 9. Code map
@@ -148,7 +150,7 @@ provider is one line in `.env` (`VIVA_PROVIDER`).
 | `agents/examiner.py` | Examiner moves; Engineer tool loop; grounding checks |
 | `agents/scoring.py` | Report: numbers in code, narrative from the model |
 | `agents/guardrails.py` | Answer classifier; reference and question checks |
-| `agents/llm.py` | Groq/Claude calls; structured outputs; tool loop; fallbacks |
+| `agents/llm.py` | Groq/Gemini/Claude calls; structured outputs; tool loop; cross-provider fallback |
 | `agents/tools.py` | `read_file`/`search_code` over a checkout; mock test runner |
 | `agents/eval.py`, `agents/quality.py` | Scripted-student evals and question metrics |
 | `agents/prompts/*.md` | One prompt per agent, plus shared panel rules |

@@ -5,7 +5,7 @@ FastAPI app that wraps the agents (`agents/panel.py`) behind the API in `docs/ap
 ```bash
 # from the repo root
 .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn backend.app.main:app --port 8000           # live (needs GROQ_API_KEY or ANTHROPIC_API_KEY in .env)
+.venv/bin/uvicorn backend.app.main:app --port 8000           # live (needs GROQ_API_KEY or ANTHROPIC_API_KEY in .env; GEMINI_API_KEY adds a backup)
 VIVA_OFFLINE=1 .venv/bin/uvicorn backend.app.main:app --port 8000   # scripted agents, no API calls
 ```
 

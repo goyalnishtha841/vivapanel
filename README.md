@@ -16,7 +16,7 @@ Three examiners — **Professor** (design/theory), **Industry Engineer** (scale,
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env                                     # add GROQ_API_KEY (or ANTHROPIC_API_KEY)
+cp .env.example .env                                     # add GROQ_API_KEY (or ANTHROPIC_API_KEY), optionally GEMINI_API_KEY as backup
 .venv/bin/uvicorn backend.app.main:app --port 8000       # API, see backend/README.md
 cd frontend && npm install && VITE_API_URL=http://127.0.0.1:8000 npm run dev   # UI on :5190
 ```
@@ -37,6 +37,8 @@ VIVA_OFFLINE=1 .venv/bin/python -m agents.cli      # scripted, no API calls
 Each run is logged to `runs/*.jsonl` in the shared Event format. `VIVA_DEBUG=1` prints latency and tokens per model call.
 
 **Groq free tier note:** 8,000 tokens/minute per model. A full session sends about 53k input tokens over 30 calls (measured; see docs/evidence/token-optimisation.md), so the Junior and the cross-challenge checks run on `gpt-oss-20b` (its own budget) and the Professor/Engineer on `gpt-oss-120b`. Expect occasional 10–30 s waits on the free tier.
+
+**Gemini backup:** add `GEMINI_API_KEY` (Google AI Studio) to `.env` and any call that hits a Groq limit moves to Gemini (flash, then flash-lite) instead of failing. A model that hits its daily cap is skipped for the rest of the day. Tested live: the edge-case eval passed 7/7 with the session switching from Groq to Gemini halfway through.
 
 ## Evals
 
