@@ -20,6 +20,10 @@ Errors: `{"error": "<code>", "detail": "<human message>"}` with codes
 `invalid_url`, `private_repo`, `repo_too_large`, `llm_failed`, `session_not_found`, `nothing_to_retake` (409),
 `daily_limit` (429).
 
+`GET /contributors?repo_url=…` → `{"contributors": [{"login", "commits", "avatar_url"}]}` (humans only). Pass the chosen
+login as `"student"` in `POST /session` for team-project mode; the summary and report then carry
+`student: {login, commits, team_commits, teammates, files: [{path, by_student, total}]}` and topics get `own_work`.
+
 `GET /session/{id}` also returns `max_questions` (12, fewer on a retake) and `retake_of`. A retake's report has
 `previous: {session_id, overall_score, topics: {title: confidence}}` so the UI can show progress.
 

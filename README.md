@@ -12,7 +12,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
-![Tests](https://img.shields.io/badge/tests-82%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-96%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
 [![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
@@ -51,7 +51,8 @@ mock vivas are rare. Viva Panel gives every student a rehearsal with examiners t
 actually read their code:
 
 1. **Paste a GitHub link.** The backend clones the repo, picks the files that matter and
-   summarises the project.
+   summarises the project. On a team project you say which contributor you are, and the git
+   history decides which files are yours.
 2. **Meet the panel.** A moderator plans the topics, and three examiners take turns:
    - 🎓 **The Professor** asks about design and theory: *why this approach, and what are the trade-offs?*
    - 🔧 **The Industry Engineer** asks about scale, edge cases and security, and checks your claims against the code.
@@ -77,6 +78,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | 🧪 **Claims get tested** | "My tests cover that" → the Engineer picks the tests, runs them and judges whether they really exercise the claim |
 | ⚔️ **Cross-examination** | After a verdict, a colleague may disagree or push the point into their own lane |
 | 🛡️ **Guardrails in code** | Empty, "I don't know", off-topic, pasted-code and prompt-injection answers are classified and capped by code, not left to the model |
+| 👥 **Team-project mode** | Pick which contributor you are; the git history shows which files you wrote, and code guarantees at least half the topics are on your own code. The report marks "your code" vs "teammate's code" |
 | 🔁 **Re-viva** | "Retake my weak topics" builds a short viva from your lowest-scoring topics (same examiner and file, new questions; code rejects last time's) and the report shows progress per topic |
 | 📄 **Evidence-backed report** | Code computes every score and copies every quote; the model writes the study plan and recruiter summary, and every reference is validated |
 | 🛟 **Never stalls on limits** | Cross-provider fallback (Groq big → Groq small → Gemini flash → flash-lite) with a 45 s timeout per call |
@@ -95,7 +97,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 82 tests (unit, panel rules, retake, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 96 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | 🚧 Docker sandbox in progress; until then real repos are read but **never executed** (the sample project uses recorded test results) |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -267,11 +269,12 @@ All settings come from `.env` (see [.env.example](.env.example)).
 
 | Method | Path | What |
 |---|---|---|
-| `POST` | `/session` | Start a viva: `{"repo_url": "https://github.com/owner/name"}` → `{"session_id"}`; or retake: `{"retake_of": "<id>"}` |
+| `POST` | `/session` | Start a viva: `{"repo_url": "https://github.com/owner/name"}` → `{"session_id"}`; or retake: `{"retake_of": "<id>"}`; team project: add `"student": "<github login>"` |
 | `GET` | `/stream/{id}` | Server-sent events, one per agent turn (speaker, message, reasoning, file, tool) |
 | `POST` | `/answer` | `{"session_id", "answer"}` |
 | `GET` | `/report/{id}` | The report (202 while it's being scored) |
 | `GET` | `/session/{id}` | Status, question limit, and the session it retakes |
+| `GET` | `/contributors?repo_url=` | Human contributors of a repo, for "which one are you?" |
 | `GET` | `/health` | Liveness and the active model |
 
 Full contract, including the event and report shapes: [docs/api-contract.md](docs/api-contract.md).
@@ -284,7 +287,7 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                      # 82 tests
+pytest -q                      # 96 tests
 ruff check agents backend tests
 ```
 
@@ -296,6 +299,7 @@ ruff check agents backend tests
 | `test_llm_routing.py` | The fallback chain: per-minute limits move to the next model, daily caps are remembered, other errors aren't retried, strict schemas are closed |
 | `test_repo_tools.py` | The Engineer's tools can't read outside the repo (`../`, absolute paths, symlinks); GitHub link parsing rejects anything else |
 | `test_retake.py` | Retakes target the weakest topics with the same examiner and file, stay short, show progress, and reject last time's questions |
+| `test_team_mode.py` | Git-history ownership on a real throwaway repo (emails, names, GitHub noreply addresses), and that at least half the planned topics land on the student's own files even when the model plans none there |
 | `test_api.py` | A full viva over HTTP, event ordering for stream resume, 400/404/409/422/429 responses, the daily cap |
 
 We checked that the suite catches regressions: disabling the edge-case enforcement or the follow-up cap makes it fail.
@@ -348,6 +352,7 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Deployed as one Docker container
 - [x] Test suite and CI on every push
 - [x] Re-viva: retake the weakest topics with new questions and see progress per topic
+- [x] Team-project mode: examine each member on the files they actually wrote (from git history)
 
 **Next**
 

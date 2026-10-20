@@ -124,3 +124,16 @@ def test_session_info_reports_the_question_limit(client):
     wait_for(client, sid, {"awaiting"})
     info = client.get(f"/session/{sid}").json()
     assert info["retake_of"] == first and info["max_questions"] < 12
+
+
+def test_contributors_endpoint(client, monkeypatch):
+    from backend.app import authorship
+    assert client.get("/contributors", params={"repo_url": SAMPLE}).json() == {"contributors": []}
+    assert client.get("/contributors", params={"repo_url": "nope"}).status_code == 400
+    monkeypatch.setattr(authorship, "contributors", lambda o, n: [{"login": "asha", "commits": 3, "avatar_url": ""}])
+    assert client.get("/contributors", params={"repo_url": "https://github.com/a/b"}).json()["contributors"][0]["login"] == "asha"
+
+
+def test_invalid_student_login_is_400(client):
+    r = client.post("/session", json={"repo_url": "https://github.com/a/b", "student": "../etc"})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_student"

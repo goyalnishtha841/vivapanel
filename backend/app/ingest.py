@@ -24,7 +24,7 @@ from agents import llm
 from agents.moderator import is_test_file
 from agents.schemas import KeyFile, ProjectSummary
 
-from . import config
+from . import authorship, config
 
 GITHUB_URL = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$", re.I)
 
@@ -81,12 +81,14 @@ def check_repo(owner: str, name: str) -> dict:
     return meta
 
 
-def clone(owner: str, name: str, dest: Path) -> None:
+def clone(owner: str, name: str, dest: Path, history: bool = False) -> None:
+    """Shallow clone; history=True keeps every commit (no old file contents) for authorship, then .git must be removed."""
     if dest.exists():
         shutil.rmtree(dest)
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}  # fail fast instead of asking for credentials
+    depth = ["--filter=blob:none"] if history else ["--depth", "1"]
     try:
-        subprocess.run(["git", "clone", "--depth", "1", "--single-branch", "--no-tags",
+        subprocess.run(["git", "clone", *depth, "--single-branch", "--no-tags",
                         f"https://github.com/{owner}/{name}.git", str(dest)],
                        check=True, capture_output=True, text=True, timeout=config.CLONE_TIMEOUT_S, env=env)
     except subprocess.TimeoutExpired as e:
@@ -95,7 +97,8 @@ def clone(owner: str, name: str, dest: Path) -> None:
     except subprocess.CalledProcessError as e:
         shutil.rmtree(dest, ignore_errors=True)
         raise IngestError("private_repo", "Couldn't clone the repository. Is it public?") from e
-    shutil.rmtree(dest / ".git", ignore_errors=True)  # the agents never need history
+    if not history:
+        shutil.rmtree(dest / ".git", ignore_errors=True)  # the agents never need history
 
 
 # ---------- choosing files ----------
@@ -113,7 +116,8 @@ def list_files(root: Path) -> list[str]:
     return out
 
 
-def pick_key_files(root: Path, files: list[str]) -> list[str]:
+def pick_key_files(root: Path, files: list[str], prefer: set[str] = frozenset()) -> list[str]:
+    """prefer: files the student wrote (team project); they rank first so the panel examines the student's own code."""
     scored = []
     for f in files:
         p = Path(f)
@@ -133,6 +137,7 @@ def pick_key_files(root: Path, files: list[str]) -> list[str]:
         score += 1.5 if parts & {"src", "app", "lib", "api", "server", "backend", "core"} else 0
         score += max(0, 3 - f.count("/")) * 0.5                 # shallower is a little more central
         score += min(size, 12_000) / 4_000                      # substantial code matters most
+        score += 5 if f in prefer else 0
         score -= 3 if stem in {"config", "settings", "constants"} or (stem == "__init__" and size < 1500) else 0
         scored.append((score, f))
     return [f for _, f in sorted(scored, reverse=True)[:MAX_KEY_FILES]]
@@ -237,17 +242,36 @@ def _offline_draft(readme: str, key: list[str], root: Path) -> SummaryDraft:
 
 # ---------- entry point ----------
 
-def ingest(repo_url: str, dest: Path, progress=lambda msg: None) -> ProjectSummary:
+def ingest(repo_url: str, dest: Path, progress=lambda msg: None, student: str | None = None) -> ProjectSummary:
+    """student: the GitHub login of the person being examined, for a team project."""
     owner, name = parse_repo_url(repo_url)
     progress(f"Checking github.com/{owner}/{name}…")
     meta = check_repo(owner, name)
     progress("Cloning the repository…")
-    clone(owner, name, dest)
+    clone(owner, name, dest, history=bool(student))
     files = list_files(dest)
     if not files:
         raise IngestError("empty_repo", "The repository has no readable files.")
-    key = pick_key_files(dest, files)
+    work = None
+    if student:
+        progress(f"Reading the git history to see which files {student} wrote…")
+        try:
+            team = [c["login"] for c in authorship.contributors(owner, name) if c["login"].lower() != student.lower()]
+            work = authorship.analyse(authorship.git_log(dest), student, *authorship.identities(owner, name, student),
+                                      files, team)
+        except (subprocess.SubprocessError, OSError) as e:
+            print(f"authorship failed for {owner}/{name}: {e}", flush=True)
+        finally:
+            shutil.rmtree(dest / ".git", ignore_errors=True)
+        if work is None:
+            progress(f"No commits by {student} found, so the panel will examine the whole project.")
+        else:
+            owned = sum(f.owned for f in work.files)
+            progress(f"{student} made {work.commits} of {work.team_commits} commits and wrote most of {owned} file"
+                     f"{'' if owned == 1 else 's'}. The panel will focus on those.")
+    key = pick_key_files(dest, files, prefer=set(work.focus()) if work else set())
     if not key:
         raise IngestError("no_code", "Couldn't find source code to ask about in this repository.")
     progress(f"Reading {len(files)} files; {len(key)} look central. Summarising the project…")
-    return summarise(owner, name, dest, files, key, meta)
+    summary = summarise(owner, name, dest, files, key, meta)
+    return summary.model_copy(update={"student": work})

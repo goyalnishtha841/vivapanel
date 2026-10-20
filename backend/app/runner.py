@@ -79,17 +79,17 @@ def friendly(err: Exception) -> str:
 
 # ---------- start ----------
 
-def start(sid: str, repo_url: str) -> None:
-    threading.Thread(target=_start, args=(sid, repo_url), daemon=True, name=f"start-{sid}").start()
+def start(sid: str, repo_url: str, student: str | None = None) -> None:
+    threading.Thread(target=_start, args=(sid, repo_url, student), daemon=True, name=f"start-{sid}").start()
 
 
-def _start(sid: str, repo_url: str) -> None:
+def _start(sid: str, repo_url: str, student: str | None = None) -> None:
     with _lock(sid):
         try:
             if _is_sample(repo_url):
                 summary = ProjectSummary.model_validate_json(SAMPLE_SUMMARY.read_text())
             else:
-                summary = ingest(repo_url, config.REPOS_DIR / sid,
+                summary = ingest(repo_url, config.REPOS_DIR / sid, student=student,
                                  progress=lambda m: _emit(sid, Event(speaker="moderator", message=m)))
         except IngestError as e:
             _emit(sid, Event(speaker="system", message=e.detail, reasoning=e.code))

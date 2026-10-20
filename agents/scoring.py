@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import llm
 from .examiner import DISPLAY, render_summary
-from .guardrails import clip_answer, file_ref_exists
+from .guardrails import clip_answer, file_ref_exists, split_ref
 from .panel import PanelState
 from .schemas import (
     ProjectSummary, Quote, Report, ReportNarrative, StudyStep, TopicScore, Turn, UnansweredQuestion, Verdict, WeakSpot,
@@ -35,6 +35,10 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
     overall = round(sum(covered) / len(covered)) if covered else 0
     narrative = _offline_narrative(summary, state, topics) if llm.is_offline() else _llm_narrative(summary, state, topics)
 
+    if summary.student:
+        focus = set(summary.student.focus())
+        for t in topics:
+            t.own_work = bool(t.file_ref) and split_ref(t.file_ref)[0] in focus
     notes = {n.topic: n.note for n in narrative.topic_notes}
     for t in topics:
         t.note = notes.get(t.topic, t.note)
@@ -68,6 +72,7 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
         recruiter_summary=narrative.recruiter_summary,
         questions_asked=len(transcript),
         previous=state.previous,
+        student=summary.student,
     )
 
 

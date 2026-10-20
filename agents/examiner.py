@@ -85,8 +85,19 @@ def render_summary(s: ProjectSummary, code: bool = True) -> str:
         file_note + "\n" + "\n".join(f"- {f}" for f in files)
         + (f"\n(+{omitted} other files not listed)" if omitted and code else ""),
         f"Tests: {'yes, run with `' + (s.test_command or '?') + '`' if s.has_tests else 'none'}",
-        "Key files:",
     ]
+    if s.student:
+        w = s.student
+        mine = {f.path: f for f in w.files}
+        parts.append(
+            f"TEAM PROJECT. The student being examined is @{w.login}: {w.commits} of {w.team_commits} commits"
+            + (f"; teammates: {', '.join('@' + t for t in w.teammates)}" if w.teammates else "") + ".\n"
+            "Their files (their commits / all commits on the file):\n"
+            + "\n".join(f"- {p} ({mine[p].by_student}/{mine[p].total})" for p in w.focus()[:6] if p in mine) + "\n"
+            "Examine them mainly on their own files. One question on how their part connects to a teammate's code is "
+            "fair; don't mark them down for code they didn't write."
+        )
+    parts.append("Key files:")
     for kf in s.key_files[:MAX_KEY_FILES]:
         line = f"- {kf.path}: {kf.purpose} Functions: {', '.join(kf.functions) or '—'}"
         if code:

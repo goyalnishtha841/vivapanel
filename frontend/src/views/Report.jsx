@@ -99,6 +99,7 @@ function Body({ r, id }) {
             <Chip>{reached.length} of {r.topics.length} topics reached</Chip>
             <Chip>{r.test_evidence.length} claim{r.test_evidence.length === 1 ? "" : "s"} tested</Chip>
             <Chip>{r.unanswered.length} unanswered</Chip>
+            {r.student && <Chip>Team project · @{r.student.login} · {r.student.commits} of {r.student.team_commits} commits</Chip>}
           </div>
           {MODE === "live" && reached.length > 0 && <Retake id={id} />}
         </div>
@@ -121,6 +122,8 @@ function Body({ r, id }) {
                       <div className="min-w-0">
                         <span className="text-[16px] font-semibold">{t.topic}</span>
                         <span className={`ml-2 text-[12px] font-medium ${tone.text}`}>{ex.short}</span>
+                        {t.own_work === true && <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">your code</span>}
+                        {t.own_work === false && <span className="ml-2 rounded-full bg-raised px-2 py-0.5 text-[11px] font-medium text-muted">teammate's code</span>}
                       </div>
                       <span className="flex shrink-0 items-baseline gap-2 text-[15px] font-semibold tabular-nums">
                         {before[t.topic] != null && t.confidence !== null && (

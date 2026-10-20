@@ -11,4 +11,5 @@ A list of topics, each assigned to exactly one examiner, ordered by priority wit
 - Each topic is anchored to one file from the file list (`path` or `path:function`). Never invent paths.
 - Prefer topics where a README claim may not be supported by the code, where there's a real design decision, or where there's a likely bug or security issue.
 - No two topics may probe the same thing, even across examiners. If the Engineer has "SQL injection in search_books", the Professor must not also ask about that query.
+- Team project (the summary says so): anchor most topics to files the student wrote; at most one topic may be on a teammate's file, about how it connects to the student's part.
 - `title` is 2–5 words (it is read aloud). `why` is one sentence the audience will see: what makes this worth probing.

@@ -86,6 +86,7 @@ class Moderator:
             seen_refs.add(t.file_ref)
             per_examiner[t.examiner] = per_examiner.get(t.examiner, 0) + 1
             kept.append(t)
+        kept = self._own_work_first(kept)
         # Every examiner must have at least one topic; top up from the offline planner if the LLM missed one.
         for role in self.examiners:
             if per_examiner.get(role):
@@ -99,11 +100,41 @@ class Moderator:
                 kept.append(extra)
         return PanelPlan(topics=kept)
 
+    def _own_work_first(self, topics: list[PlannedTopic]) -> list[PlannedTopic]:
+        """Team project: at least half the topics must be on files the student wrote. Code guarantees it by
+        re-anchoring the lowest-priority topics on other people's files to the student's own key files."""
+        if not self.summary.student or not topics:
+            return topics
+        focus = self.summary.student.focus()
+        mine = lambda t: split_ref(t.file_ref)[0] in focus  # noqa: E731
+        spare = [kf for kf in self.summary.key_files if kf.path in focus
+                 and not any(split_ref(t.file_ref)[0] == kf.path for t in topics)]
+        need = (len(topics) + 1) // 2 - sum(mine(t) for t in topics)
+        out = list(topics)
+        for i in range(len(out) - 1, -1, -1):
+            if need <= 0 or not spare:
+                break
+            if mine(out[i]):
+                continue
+            kf = spare.pop(0)
+            func = kf.functions[0] if kf.functions else None
+            out[i] = PlannedTopic(
+                examiner=out[i].examiner,
+                title=f"{func} in {kf.path.rsplit('/', 1)[-1]}" if func else kf.path.rsplit("/", 1)[-1],
+                file_ref=f"{kf.path}:{func}" if func else kf.path,
+                why=f"Code the student wrote: {kf.purpose[0].lower() + kf.purpose[1:]}",
+            )
+            need -= 1
+        return out
+
     def _offline_plan(self) -> PanelPlan:
         """Assign each key file to the examiner whose lane keywords it matches best, round-robin on ties."""
         topics: list[PlannedTopic] = []
         load = {r: 0 for r in self.examiners}
         files = [kf for kf in self.summary.key_files if not is_test_file(kf.path)]
+        if self.summary.student:  # team project: the student's own files first
+            focus = self.summary.student.focus()
+            files.sort(key=lambda kf: kf.path not in focus)
         for i, kf in enumerate(files):
             role = self._best_lane(kf, load, tie_break=i)
             if role is None:
@@ -179,5 +210,9 @@ class Moderator:
                        f"{body}.")
         else:
             message = f"Welcome to your viva. {body[0].upper()}{body[1:]}."
+            if self.summary.student:
+                w = self.summary.student
+                message = (f"Welcome to your viva. This is a team project and you made {w.commits} of the "
+                           f"{w.team_commits} commits, so most questions are about code you wrote. {body[0].upper()}{body[1:]}.")
         reasoning = " | ".join(f"{DISPLAY[t.examiner]} → {split_ref(t.file_ref)[0]}: {t.why}" for t in plan.topics)
         return message, reasoning

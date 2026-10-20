@@ -113,6 +113,17 @@ topic, examiners are told it's a retake and shown last time's questions, and cod
 (the same duplicate check used within a session). The report carries the previous scores, and the scoring agent is
 asked to say whether the student improved. No new repo summary call is made: the retake reuses the project summary.
 
+## 5c. Team-project mode
+
+Most final-year projects are team projects, and the real viva question is "did you write this?". The student picks
+which contributor they are (`GET /contributors`, GitHub's list), and ingestion clones with full history (commits and
+trees only, no old file contents). `backend/app/authorship.py` matches the student to their commits (SHAs, emails and
+names from one GitHub API call, plus their noreply address) and counts, per file, their commits against everyone's.
+A file is theirs if they made at least half its commits. Their files rank first as key files, the project card tells
+every examiner which files are theirs, and `Moderator._own_work_first` guarantees at least half the topics are on
+them, whatever the model planned. The report marks each topic "your code" or "teammate's code". The `.git` folder
+is deleted right after.
+
 ## 6. Scoring
 
 ```

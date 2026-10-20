@@ -21,13 +21,18 @@ async function json(res) {
 }
 
 const live = {
-  async createSession(repoUrl) {
+  // student: the GitHub login of the team member being examined (team projects), or null
+  async createSession(repoUrl, student = null) {
     const r = await json(await fetch(`${BASE}/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repo_url: repoUrl }),
+      body: JSON.stringify({ repo_url: repoUrl, student }),
     }));
     return r.session_id;
+  },
+  async contributors(repoUrl) {
+    const r = await json(await fetch(`${BASE}/contributors?repo_url=${encodeURIComponent(repoUrl)}`));
+    return r.contributors || [];
   },
   // A shorter viva on the weakest topics of a finished session (same repo, new questions).
   async retake(id) {
@@ -96,6 +101,9 @@ function delayFor(e) {
 }
 
 const demo = {
+  async contributors() {
+    return [];
+  },
   async createSession() {
     const id = `demo-${Math.random().toString(36).slice(2, 8)}`;
     sessions.set(id, { cursor: 0, listener: null, running: false });

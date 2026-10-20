@@ -19,6 +19,7 @@ from agents import llm
 
 from . import config, runner, store
 from .ingest import IngestError, parse_repo_url
+from . import authorship
 
 app = FastAPI(title="Viva Panel API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
@@ -33,6 +34,7 @@ def error(status: int, code: str, detail: str) -> JSONResponse:
 
 class NewSession(BaseModel):
     repo_url: str = Field(default="", max_length=300)
+    student: str | None = Field(default=None, max_length=39)  # team project: the student's GitHub login
     retake_of: str | None = Field(default=None, max_length=40)  # a finished session: retake its weakest topics
 
 
@@ -46,6 +48,18 @@ def health():
     return {"status": "ok", "llm": "offline" if llm.is_offline() else f"{llm.PROVIDER}:{llm.MODEL}"}
 
 
+@app.get("/contributors")
+def list_contributors(repo_url: str):
+    """Human contributors of a repo, so a team member can say which one they are before the viva."""
+    try:
+        owner, name = parse_repo_url(repo_url)
+    except IngestError as e:
+        return error(400, e.code, e.detail)
+    if runner._is_sample(repo_url):
+        return {"contributors": []}
+    return {"contributors": authorship.contributors(owner, name)}
+
+
 @app.post("/session")
 def create_session(body: NewSession):
     prev = None
@@ -56,6 +70,8 @@ def create_session(body: NewSession):
         if not runner.can_retake(prev):
             return error(409, "nothing_to_retake", "Finish the viva first: a retake needs at least one assessed topic.")
     url = prev["repo_url"] if prev else body.repo_url.strip()
+    if body.student and not authorship.LOGIN.match(body.student):
+        return error(400, "invalid_student", "That isn't a valid GitHub username.")
     if not prev and not runner._is_sample(url):
         try:
             parse_repo_url(url)
@@ -68,7 +84,7 @@ def create_session(body: NewSession):
     if prev:
         runner.start_retake(sid, body.retake_of)
     else:
-        runner.start(sid, url)
+        runner.start(sid, url, student=body.student)
     return {"session_id": sid}
 
 

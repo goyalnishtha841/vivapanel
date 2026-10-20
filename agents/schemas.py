@@ -35,6 +35,30 @@ class KeyFile(BaseModel):
     snippet: str = ""
 
 
+class FileOwnership(BaseModel):
+    path: str
+    by_student: int = Field(description="Commits by the student that changed this file.")
+    total: int = Field(description="All commits that changed this file.")
+
+    @property
+    def owned(self) -> bool:
+        """The student wrote most of it (by commits)."""
+        return self.by_student >= 1 and self.by_student * 2 >= self.total
+
+
+class StudentWork(BaseModel):
+    """Team project: who the student is in the git history, and which files are theirs."""
+    login: str
+    commits: int
+    team_commits: int
+    teammates: list[str] = []
+    files: list[FileOwnership] = Field(default=[], description="Files the student changed, most of their work first.")
+
+    def focus(self) -> list[str]:
+        """What to examine them on: files they wrote most of, or else the ones they changed most."""
+        return [f.path for f in self.files if f.owned] or [f.path for f in self.files[:4]]
+
+
 class ProjectSummary(BaseModel):
     repo_url: str
     name: str
@@ -45,6 +69,7 @@ class ProjectSummary(BaseModel):
     key_files: list[KeyFile] = []
     has_tests: bool = False
     test_command: Optional[str] = None
+    student: Optional[StudentWork] = None  # team project only
 
 
 class RunTestsResult(BaseModel):
@@ -182,6 +207,7 @@ class TopicScore(BaseModel):
     verdicts: list[Verdict]
     note: str = ""
     evidence: list[Quote] = []
+    own_work: Optional[bool] = None  # team project: the student wrote this file
 
 
 class WeakSpot(BaseModel):
@@ -228,6 +254,7 @@ class Report(BaseModel):
     recruiter_summary: str
     questions_asked: int
     previous: Optional[PreviousAttempt] = None  # set on a retake
+    student: Optional[StudentWork] = None  # team project
     generated_at: str = Field(default_factory=now_iso)
 
 

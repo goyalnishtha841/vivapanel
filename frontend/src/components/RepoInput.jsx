@@ -10,6 +10,17 @@ export default function RepoInput({ size = "lg" }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [team, setTeam] = useState(null); // contributors of a team repo: "which one are you?"
+
+  async function begin(repo, student = null) {
+    setBusy(true);
+    try {
+      go(`/session/${await api.createSession(repo, student)}`);
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
 
   async function start(value = url) {
     const repo = value.trim();
@@ -18,14 +29,44 @@ export default function RepoInput({ size = "lg" }) {
       return;
     }
     setError("");
+    const full = repo.startsWith("http") ? repo : `https://${repo}`;
+    if (value === DEMO_REPO) return begin(full);
     setBusy(true);
-    try {
-      const id = await api.createSession(repo.startsWith("http") ? repo : `https://${repo}`);
-      go(`/session/${id}`);
-    } catch (e) {
-      setError(e.message);
+    const people = await api.contributors(full).catch(() => []);
+    if (people.length >= 2) {
       setBusy(false);
+      setTeam({ repo: full, people: people.slice(0, 8) });
+      return;
     }
+    begin(full);
+  }
+
+  if (team) {
+    return (
+      <div className="w-full rounded-[24px] border border-line bg-surface/90 p-5 text-left backdrop-blur sm:p-6">
+        <p className="text-[17px] font-semibold">Team project. Which one are you?</p>
+        <p className="mt-1 text-[14px] text-muted">The panel reads the git history and asks you mainly about the code you wrote.</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {team.people.map((p) => (
+            <button key={p.login} disabled={busy} onClick={() => begin(team.repo, p.login)}
+              className="flex items-center gap-3 rounded-2xl border border-line px-3 py-2.5 text-left transition-colors hover:border-brand/60 disabled:opacity-60">
+              {p.avatar_url && <img src={`${p.avatar_url}&s=64`} alt="" width="32" height="32" className="h-8 w-8 rounded-full" />}
+              <span className="min-w-0">
+                <span className="block truncate text-[15px] font-medium">@{p.login}</span>
+                <span className="block text-[12px] text-muted">{p.commits} commit{p.commits === 1 ? "" : "s"}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[14px]">
+          <button disabled={busy} onClick={() => begin(team.repo)} className="font-medium text-brand hover:underline">
+            {busy ? "Starting…" : "Skip: examine me on the whole project"}
+          </button>
+          <button disabled={busy} onClick={() => setTeam(null)} className="text-muted hover:text-ink">Change repo</button>
+        </div>
+        {error && <p role="alert" className="mt-2 text-[13px] text-bad">{error}</p>}
+      </div>
+    );
   }
 
   const big = size === "lg";
