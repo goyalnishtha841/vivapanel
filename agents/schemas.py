@@ -67,7 +67,7 @@ Verdict = Literal["strong", "partial", "weak", "no_answer", "not_applicable"]
 
 class PlannedTopic(BaseModel):
     examiner: Examiner
-    title: str = Field(description="2–5 words.")
+    title: str = Field(description="2–5 words, sentence case.")
     file_ref: str = Field(description="Listed path, optionally :function.")
     why: str = Field(description="One sentence.")
 

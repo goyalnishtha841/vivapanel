@@ -37,10 +37,19 @@ def is_test_file(path: str) -> bool:
     return path.startswith(("tests/", "test/")) or name.startswith("test_") or name.endswith(("_test.py", ".test.js", ".spec.js"))
 
 
+def _plain(word: str) -> bool:
+    """A capitalised ordinary word ("Design"), not an acronym (JWT) or a name with inner capitals (MarkupSafe)."""
+    return word[:1].isupper() and word[1:].islower()
+
+
 def _soft_lower(title: str) -> str:
-    """Lowercase the first letter for mid-sentence use, unless it starts an acronym (JWT, SQL)."""
-    first = title.split(" ", 1)[0]
-    return title if first[:2].isupper() else title[0].lower() + title[1:]
+    """Make a topic title fit mid-sentence: "What Is MarkupSafe" -> "what is MarkupSafe", "JWT Expiry" -> "JWT expiry"."""
+    words = title.split(" ")
+    if len(words) > 1 and all(_plain(w) or not w[:1].islower() for w in words):  # Title Case from the model
+        words = [w.lower() if _plain(w) else w for w in words]
+    elif _plain(words[0]):
+        words[0] = words[0].lower()
+    return " ".join(words)
 
 
 class Moderator:
