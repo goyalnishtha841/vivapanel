@@ -8,7 +8,8 @@ Rule for the day: if we don't know or haven't tested something, say so. Honesty 
 ## Agentic capability (25)
 
 **Q: Is this really agentic, or just a script calling an LLM?**
-Five agents each make real decisions every session: the moderator plans what to probe, examiners judge answers and
+Six agents each make real decisions every session: a reader agent explores the repo with `read_file` and
+`search_code` to decide which files matter, the moderator plans what to probe, examiners judge answers and
 choose to follow up, move on or challenge each other, the Engineer chooses which tools to call, and the scoring agent
 writes the diagnosis. The Engineer runs a genuine function-calling loop: it picks `read_file`, `search_code` or
 `run_tests`, reads the result, decides whether it needs more, then submits.
@@ -118,5 +119,4 @@ gets *easier*, not harder, so a stuck student can still show what they know.
 
 - **Hiring mode:** a recruiter sends a link; the candidate's report becomes evidence-backed screening.
 - **Calibration:** compare panel scores with real faculty viva marks.
-- **Agentic repo reader:** let an agent explore the repo with the same tools, instead of fixed file-selection rules.
 - **More sandboxes:** Node/Jest, Java/JUnit.

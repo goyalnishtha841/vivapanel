@@ -7,7 +7,7 @@ How the agents coordinate, what the model decides versus what code guarantees, a
 ```mermaid
 flowchart LR
     S([Student]) -->|GitHub URL| API[FastAPI backend]
-    API --> RR[Repo reader<br/>file tree, README, key files]
+    API --> RR[Reader agent<br/>explores the repo<br/>🔧 read_file · search_code]
     RR -->|ProjectSummary| MOD[Moderator agent<br/>plans topics]
     MOD --> PANEL
 
@@ -28,6 +28,7 @@ flowchart LR
 
 | Agent | Decides (LLM) | File |
 |---|---|---|
+| **Reader agent** | Which files matter: reads the README, tree and rule-ranked candidates, opens or searches a few files, then picks the key files and writes the project summary. Code checks every path and function and cuts snippets from the real files | `backend/app/ingest.py:explore` |
 | **Moderator** | Which 2 topics each examiner probes, anchored to real files, with no overlap | `agents/moderator.py` |
 | **Professor** | Design-justification questions; verdict on each answer; follow up or move on | `agents/examiner.py` |
 | **Engineer** | Same, for scale/edge cases/security, **plus which tools to call**: reads and searches code, picks which tests to run, judges the result | `agents/examiner.py` |

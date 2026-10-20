@@ -12,7 +12,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
-![Tests](https://img.shields.io/badge/tests-107%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-112%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
 [![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
@@ -50,8 +50,8 @@ tutorials, or written by a teammate. A real viva catches that, but faculty time 
 mock vivas are rare. Viva Panel gives every student a rehearsal with examiners that have
 actually read their code:
 
-1. **Paste a GitHub link.** The backend clones the repo, picks the files that matter and
-   summarises the project. On a team project you say which contributor you are, and the git
+1. **Paste a GitHub link.** The backend clones the repo, and a reader agent explores it (opening
+   files, searching for where README claims live) to pick the files that matter and summarise the project. On a team project you say which contributor you are, and the git
    history decides which files are yours.
 2. **Meet the panel.** A moderator plans the topics, and three examiners take turns:
    - 🎓 **The Professor** asks about design and theory: *why this approach, and what are the trade-offs?*
@@ -73,6 +73,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | | |
 |---|---|
 | 🧑‍⚖️ **Three distinct examiners** | Different lenses (theory, production, plain language) and tones, sharing one transcript so they notice contradictions |
+| 🗺️ **Agentic repo reader** | Before planning, an agent explores the repo (opens files, searches for where README claims live) and picks the files worth examining; each step shows live. Code validates every path and function, and rule-based ranking is the fallback |
 | 🧭 **Planned, not random** | A moderator assigns 2 non-overlapping topics per examiner, each anchored to a real file |
 | 🔍 **Tool-using Engineer** | Calls `read_file` and `search_code` on your repo in a function-calling loop: if you say "I close connections in a teardown hook", it searches and finds out |
 | 🧪 **Claims get tested** | "My tests cover that" → the Engineer picks the tests, runs them and judges whether they really exercise the claim |
@@ -98,7 +99,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 107 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 112 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | ✅ The student's pytest suite runs in a throwaway Docker container or E2B microVM (no network while testing, resource and time limits). Verified on `pallets/markupsafe`. On Render it needs an `E2B_API_KEY` |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -120,7 +121,7 @@ report scores each topic from the verdicts, quotes weak answers and ends with a 
 ```mermaid
 flowchart LR
     S([Student]) -->|GitHub URL| API[FastAPI backend]
-    API --> RR[Repo reader<br/>file tree, README, key files]
+    API --> RR[Reader agent<br/>explores the repo<br/>🔧 read_file · search_code]
     RR -->|ProjectSummary| MOD[Moderator agent<br/>plans topics]
     MOD --> PANEL
 
@@ -291,7 +292,7 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                      # 107 tests
+pytest -q                      # 112 tests
 ruff check agents backend tests
 ```
 
@@ -305,6 +306,7 @@ ruff check agents backend tests
 | `test_retake.py` | Retakes target the weakest topics with the same examiner and file, stay short, show progress, and reject last time's questions |
 | `test_team_mode.py` | Git-history ownership on a real throwaway repo (emails, names, GitHub noreply addresses), and that at least half the planned topics land on the student's own files even when the model plans none there |
 | `test_sandbox.py` | Reading pytest's output (pass, fail, collection error, timeout), only real test files can be targeted, a failed install never runs tests, backend choice |
+| `test_reader.py` | The reader agent's picks are validated (no invented paths or functions, no tests or non-code, no duplicates), each step is narrated once, the student's files are always kept in team mode, and a broken agent falls back to one summary call |
 | `test_api.py` | A full viva over HTTP, event ordering for stream resume, 400/404/409/422/429 responses, the daily cap |
 
 We checked that the suite catches regressions: disabling the edge-case enforcement or the follow-up cap makes it fail.
@@ -360,6 +362,7 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Team-project mode: examine each member on the files they actually wrote (from git history)
 - [x] Code viewer beside each question, following the Engineer's reads and searches live
 - [x] Test sandbox for real repos: Docker locally, E2B when hosted; network cut before tests run
+- [x] Agentic repo reader: an agent explores the repo to choose what to examine
 
 **Next**
 

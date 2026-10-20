@@ -52,6 +52,12 @@ in this), 2,500–3,000 for the plan, summary and report, instead of 4,000 for e
     assumes more follow-ups and challenges, so it's an upper bound).
   - Clarify, don't-know, one-word, empty, injection, off-topic and pasted-code answers were all handled as intended.
 
+## Reader agent (added later)
+
+The repo reader became an agent (it opens or searches up to 4 files before choosing key files). Measured live:
+`miguelgrinberg/microblog` ~2k input tokens (the candidate list was enough, no tool calls; cheaper than the old
+~4k single summary call), `pallets/markupsafe` ~13k (4 tool calls). It runs once per session, before the viva.
+
 ## Gemini latency
 
 In that run two Gemini calls took 90–125 s (the SDK was backing off on per-minute limits). The Gemini client now has
