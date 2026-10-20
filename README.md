@@ -65,6 +65,11 @@ actually read their code:
 5. **Retake your weak topics.** After studying, a shorter viva goes over only what you got wrong,
    with new questions, and the report shows how each topic changed.
 
+**For recruiters and placement cells:** the same panel screens candidates. A recruiter creates an
+interview link with the role and skills to probe; the candidate sees exactly what will be shared and
+takes the viva; the recruiter gets a private screening report, presented as one signal for a person
+to review.
+
 Every claim in the report points at a real transcript turn or repo file. Code checks those
 references and copies the quotes itself, so the model can't invent evidence.
 
@@ -97,11 +102,13 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Area | State |
 |---|---|
 | End-to-end app (repo link → viva → report) | ✅ **Deployed** at [viva-panel.onrender.com](https://viva-panel.onrender.com); a full 12-question viva verified on the live URL |
-| Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
+| Agents (reader, moderator, 3 examiners, scorer) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
+| Re-viva, team mode, code viewer | ✅ Verified live (retake: fine calculation 0 → 100; team mode on markupsafe: 259 of 544 commits matched) |
+| Hiring mode | ✅ Full flow verified with offline agents in the browser; a live-model run is next |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
 | Tests and CI | ✅ 120 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
-| Test sandbox for real repos | ✅ The student's pytest suite runs in a throwaway Docker container or E2B microVM (no network while testing, resource and time limits). Verified on `pallets/markupsafe`. On Render it needs an `E2B_API_KEY` |
+| Test sandbox for real repos | ✅ Locally: the student's pytest suite runs in a throwaway Docker container (no network while testing, resource and time limits), verified on `pallets/markupsafe`. 🚧 On Render: a hosted sandbox key is being set up by the team (E2B, or a free alternative such as Daytona); until then the live site reads and searches real repos, and the sample project shows test verification |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
 ---
@@ -170,6 +177,9 @@ Full design, diagrams and trade-offs: **[docs/architecture.md](docs/architecture
 | Provider failover, live | Groq hit its limit mid-session and Gemini took over, including the Engineer's tool loop, without the session stopping | [live-edge-eval-gemini-fallback.json](docs/evidence/live-edge-eval-gemini-fallback.json) |
 | Tool-using Engineer | Searched the repo and caught a student falsely claiming a teardown hook closes every connection | [agentic-engineer.md](docs/evidence/agentic-engineer.md) |
 | Full viva on the deployed URL | 12 questions + report in about 2.5 minutes | — |
+| Re-viva, live | Retake asked new questions on the 3 weakest topics; fine calculation 0 → 100, SQL injection 3 → 100, rollback stayed 3 (the answer missed it) | — |
+| Test sandbox (Docker) | markupsafe's own tests: 12 passed, claim marked supported, network blocked during tests | — |
+| Reader agent cost | microblog ~2k tokens (no tool calls needed), markupsafe ~13k (4 tool calls) | [token-optimisation.md](docs/evidence/token-optimisation.md) |
 
 ---
 
@@ -180,7 +190,8 @@ Full design, diagrams and trade-offs: **[docs/architecture.md](docs/architecture
 | Agents | Python, Pydantic structured outputs, a hand-written function-calling loop | Strict JSON schemas make every decision machine-checkable; no framework hides the loop |
 | LLMs | Groq `gpt-oss-120b` / `gpt-oss-20b`, Gemini flash as backup, Claude supported | Sub-second calls and a free tier; a second provider so a demo never stops; one setting to switch |
 | Backend | FastAPI, server-sent events | Streams agent turns as they happen; SSE is one-way, which is all the panel needs, and reconnects on its own |
-| Storage | SQLite (WAL) | One file, zero setup; sessions and an ordered event log are all we store |
+| Storage | SQLite (WAL) | One file, zero setup; sessions, an ordered event log and interview links are all we store |
+| Code isolation | Docker locally, a hosted sandbox (E2B or Daytona) on Render | Student code must never run on our server |
 | Frontend | React 18, Vite, Tailwind, framer-motion | Fast iteration; the stage, scorecard and report are all components |
 | Deploy | One Docker image on Render | FastAPI also serves the built app, so there's one URL and no CORS |
 
@@ -334,8 +345,9 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 
 ## Limitations
 
-- **Test runs need a sandbox backend.** Locally Docker is used automatically; on Render the hosted
-  sandbox needs an `E2B_API_KEY`. Without one, real repos are read and searched but not test-run.
+- **Test runs need a sandbox backend.** Locally Docker is used automatically; on Render a hosted
+  sandbox key (E2B, or a free alternative) is still being added. Without one, real repos are read
+  and searched but not test-run.
 - **Free-tier limits.** About 5 full sessions a day on Groq's free tier, plus the Gemini backup.
   The deploy caps new vivas per day so a public link can't drain them.
 - **Scoring isn't calibrated against human examiners yet.** The weights are a reasoned first
@@ -366,12 +378,13 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Re-viva: retake the weakest topics with new questions and see progress per topic
 - [x] Team-project mode: examine each member on the files they actually wrote (from git history)
 - [x] Code viewer beside each question, following the Engineer's reads and searches live
-- [x] Test sandbox for real repos: Docker locally, E2B when hosted; network cut before tests run
+- [x] Test sandbox for real repos: Docker locally (E2B backend ready); network cut before tests run
 - [x] Agentic repo reader: an agent explores the repo to choose what to examine
 - [x] Hiring mode: interview links, role-weighted questions, a private screening report with per-skill scores
 
 **Next**
 
+- [ ] Hosted sandbox key on Render (E2B or Daytona)
 - [ ] Results from 5 real student repos
 - [ ] Persistent storage (Postgres) and a teacher view for a whole batch
 - [ ] Calibrate scores against real faculty viva marks
@@ -387,8 +400,8 @@ Built for the **Ziro Agentic AI Hackathon 2026** by a three-person team.
 
 | Member | Area |
 |---|---|
-| Nishtha Goyal | AI and agents: moderator, examiners, scoring, guardrails, evals, LLM routing |
-| | Backend and tools: API, ingestion, sandbox |
-| | Frontend and voice: UI, streaming, report |
+| Nishtha Goyal | AI and agents (reader, moderator, examiners, scorer, guardrails, LLM routing, evals), plus the backend, UI, re-viva, team and hiring modes |
+| | Hosted test sandbox, deployment |
+| | Demo video, slides, UI polish |
 
 **License:** not yet chosen. All rights reserved by the authors until one is added.
