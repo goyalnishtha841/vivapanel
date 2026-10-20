@@ -10,14 +10,18 @@ The Python versions of these shapes live in `agents/schemas.py` — import them,
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| `POST` | `/session` | `{"repo_url": "https://github.com/owner/name"}` | `{"session_id": "abc123"}` |
+| `POST` | `/session` | `{"repo_url": "https://github.com/owner/name"}`, or `{"retake_of": "<finished session id>"}` for a retake | `{"session_id": "abc123"}` |
 | `POST` | `/answer` | `{"session_id": "abc123", "answer": "student's reply"}` | `{"ok": true}` |
 | `GET` | `/stream/{id}` | — | Server-sent events, one `data:` line per **Event** (below) |
 | `GET` | `/report/{id}` | — | **Report** JSON (section 6) |
 | `GET` | `/health` | — | `{"status": "ok"}` |
 
 Errors: `{"error": "<code>", "detail": "<human message>"}` with codes
-`invalid_url`, `private_repo`, `repo_too_large`, `llm_failed`, `session_not_found`.
+`invalid_url`, `private_repo`, `repo_too_large`, `llm_failed`, `session_not_found`, `nothing_to_retake` (409),
+`daily_limit` (429).
+
+`GET /session/{id}` also returns `max_questions` (12, fewer on a retake) and `retake_of`. A retake's report has
+`previous: {session_id, overall_score, topics: {title: confidence}}` so the UI can show progress.
 
 ---
 

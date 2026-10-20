@@ -1,6 +1,7 @@
 """Runs the agents for a session in a background thread and records every event.
 
     start(sid, repo_url)  ingest the repo, plan the panel, ask the first question
+    start_retake(sid, prev)  a shorter viva on the weakest topics of a finished session
     answer(sid, text)     judge the answer and produce the next turn(s); score the report when the viva ends
 
 The HTTP layer never waits on an LLM call: it starts the work here and returns, and the client follows
@@ -13,13 +14,13 @@ import threading
 from pathlib import Path
 
 from agents import llm
-from agents.panel import Panel
-from agents.schemas import Event, ProjectSummary
+from agents.panel import Panel, PanelState
+from agents.schemas import Event, ProjectSummary, Report
 from agents.scoring import build_report
 from agents.tools import MOCK_REPO, LocalRepoTools, mock_test_runner
 
 from . import config, store
-from .ingest import IngestError, ingest
+from .ingest import IngestError, clone, ingest, parse_repo_url
 
 # The landing page's "sample project" link. It isn't a real GitHub repo: it's the bundled mock project.
 SAMPLE_REPO = "https://github.com/example-student/campus-library-api"
@@ -101,11 +102,44 @@ def _start(sid: str, repo_url: str) -> None:
             return
 
         run_tests, repo_tools = _tools(sid, summary)
-        panel = Panel(summary, run_tests=run_tests, repo_tools=repo_tools)
-        ok = _run(sid, panel.start(), on_fail="llm_failed")  # nothing to retry yet: the session can't start
-        store.update(sid, summary=summary.model_dump_json(), state=panel.to_json(),
-                     status="awaiting" if ok and panel.awaiting_answer else "error",
-                     error=None if ok else "llm_failed")
+        _begin(sid, summary, Panel(summary, run_tests=run_tests, repo_tools=repo_tools))
+
+
+def _begin(sid: str, summary: ProjectSummary, panel: Panel) -> None:
+    ok = _run(sid, panel.start(), on_fail="llm_failed")  # nothing to retry yet: the session can't start
+    store.update(sid, summary=summary.model_dump_json(), state=panel.to_json(),
+                 status="awaiting" if ok and panel.awaiting_answer else "error",
+                 error=None if ok else "llm_failed")
+
+
+# ---------- retake ----------
+
+def can_retake(row: dict) -> bool:
+    """A finished viva with at least one topic actually assessed."""
+    if not row.get("report") or not row.get("state"):
+        return False
+    return any(t.confidence is not None for t in Report.model_validate_json(row["report"]).topics)
+
+
+def start_retake(sid: str, prev_sid: str) -> None:
+    threading.Thread(target=_start_retake, args=(sid, prev_sid), daemon=True, name=f"retake-{sid}").start()
+
+
+def _start_retake(sid: str, prev_sid: str) -> None:
+    with _lock(sid):
+        prev = store.get_session(prev_sid)
+        summary = ProjectSummary.model_validate_json(prev["summary"])  # no new summary call: same project
+        if not _is_sample(summary.repo_url):
+            _emit(sid, Event(speaker="moderator", message="Fetching your repository again…"))
+            try:
+                clone(*parse_repo_url(summary.repo_url), config.REPOS_DIR / sid)
+            except IngestError as e:
+                print(f"[{sid}] retake clone failed ({e.code}); the Engineer won't open files", flush=True)
+        run_tests, repo_tools = _tools(sid, summary)
+        panel = Panel.retake(summary, prev_sid, Report.model_validate_json(prev["report"]),
+                             PanelState.model_validate_json(prev["state"]), run_tests=run_tests, repo_tools=repo_tools)
+        store.update(sid, state=panel.to_json())  # the plan and its shorter question limit, before the first question
+        _begin(sid, summary, panel)
 
 
 # ---------- answer ----------

@@ -12,7 +12,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
-![Tests](https://img.shields.io/badge/tests-75%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-82%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
 [![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
@@ -61,6 +61,8 @@ actually read their code:
    other's verdicts.
 4. **Get your report.** A score per topic, your weak answers quoted back with the file they
    concern, what the tests proved, and a time-boxed study plan.
+5. **Retake your weak topics.** After studying, a shorter viva goes over only what you got wrong,
+   with new questions, and the report shows how each topic changed.
 
 Every claim in the report points at a real transcript turn or repo file. Code checks those
 references and copies the quotes itself, so the model can't invent evidence.
@@ -75,8 +77,9 @@ references and copies the quotes itself, so the model can't invent evidence.
 | 🧪 **Claims get tested** | "My tests cover that" → the Engineer picks the tests, runs them and judges whether they really exercise the claim |
 | ⚔️ **Cross-examination** | After a verdict, a colleague may disagree or push the point into their own lane |
 | 🛡️ **Guardrails in code** | Empty, "I don't know", off-topic, pasted-code and prompt-injection answers are classified and capped by code, not left to the model |
+| 🔁 **Re-viva** | "Retake my weak topics" builds a short viva from your lowest-scoring topics (same examiner and file, new questions; code rejects last time's) and the report shows progress per topic |
 | 📄 **Evidence-backed report** | Code computes every score and copies every quote; the model writes the study plan and recruiter summary, and every reference is validated |
-| 🔁 **Never stalls on limits** | Cross-provider fallback (Groq big → Groq small → Gemini flash → flash-lite) with a 45 s timeout per call |
+| 🛟 **Never stalls on limits** | Cross-provider fallback (Groq big → Groq small → Gemini flash → flash-lite) with a 45 s timeout per call |
 | 🎙️ **Voice** | Questions are read aloud and answers can be spoken (browser speech APIs) |
 | ⚡ **Live streaming** | Agent turns, reasoning and tool activity stream to the UI over server-sent events |
 
@@ -92,7 +95,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 75 tests (unit, panel rules, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 82 tests (unit, panel rules, retake, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | 🚧 Docker sandbox in progress; until then real repos are read but **never executed** (the sample project uses recorded test results) |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -264,11 +267,11 @@ All settings come from `.env` (see [.env.example](.env.example)).
 
 | Method | Path | What |
 |---|---|---|
-| `POST` | `/session` | Start a viva: `{"repo_url": "https://github.com/owner/name"}` → `{"session_id"}` |
+| `POST` | `/session` | Start a viva: `{"repo_url": "https://github.com/owner/name"}` → `{"session_id"}`; or retake: `{"retake_of": "<id>"}` |
 | `GET` | `/stream/{id}` | Server-sent events, one per agent turn (speaker, message, reasoning, file, tool) |
 | `POST` | `/answer` | `{"session_id", "answer"}` |
 | `GET` | `/report/{id}` | The report (202 while it's being scored) |
-| `GET` | `/session/{id}` | Session status |
+| `GET` | `/session/{id}` | Status, question limit, and the session it retakes |
 | `GET` | `/health` | Liveness and the active model |
 
 Full contract, including the event and report shapes: [docs/api-contract.md](docs/api-contract.md).
@@ -281,7 +284,7 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                      # 75 tests
+pytest -q                      # 82 tests
 ruff check agents backend tests
 ```
 
@@ -292,6 +295,7 @@ ruff check agents backend tests
 | `test_guardrails.py` | Answer classification (empty, "idk", clarify, injection, one word, long paste), file and function reference checks, question-quality checks |
 | `test_llm_routing.py` | The fallback chain: per-minute limits move to the next model, daily caps are remembered, other errors aren't retried, strict schemas are closed |
 | `test_repo_tools.py` | The Engineer's tools can't read outside the repo (`../`, absolute paths, symlinks); GitHub link parsing rejects anything else |
+| `test_retake.py` | Retakes target the weakest topics with the same examiner and file, stay short, show progress, and reject last time's questions |
 | `test_api.py` | A full viva over HTTP, event ordering for stream resume, 400/404/409/422/429 responses, the daily cap |
 
 We checked that the suite catches regressions: disabling the edge-case enforcement or the follow-up cap makes it fail.
@@ -342,7 +346,8 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] React UI: landing, live panel with voice, report with PDF export
 - [x] Token optimisation (−35%) and a Gemini backup with cross-provider fallback
 - [x] Deployed as one Docker container
-- [x] Test suite (75 tests) and CI on every push
+- [x] Test suite and CI on every push
+- [x] Re-viva: retake the weakest topics with new questions and see progress per topic
 
 **Next**
 

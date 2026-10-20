@@ -24,8 +24,8 @@ from .guardrails import ANSWER_NOTES, clip_answer, classify_answer
 from .llm import LLMError
 from .moderator import ORDER, Moderator
 from .schemas import (
-    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, ProjectSummary, RunTestsResult, ToolRecord, Turn,
-    Verification,
+    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report,
+    RunTestsResult, ToolRecord, Turn, Verification,
 )
 from . import llm
 from .tools import TestRunner
@@ -33,6 +33,7 @@ from .tools import TestRunner
 MAX_QUESTIONS = 12      # ~5 minute session
 MAX_CHALLENGES = 2      # cross-examiner interjections per session
 MAX_TEST_RUNS = 1       # sandbox verifications per session (each can take up to a minute)
+RETAKE_QUESTIONS_PER_TOPIC = 3  # an opener and up to two follow-ups
 
 
 class PanelState(BaseModel):
@@ -46,6 +47,10 @@ class PanelState(BaseModel):
     verifications: list[Verification] = []
     tool_calls: list[ToolRecord] = []
     done: bool = False
+    max_questions: int = MAX_QUESTIONS
+    # retake only: the attempt it builds on, and last time's questions per topic (not to be asked again)
+    previous: PreviousAttempt | None = None
+    avoid_questions: dict[str, list[str]] = {}
 
 
 class Panel:
@@ -71,6 +76,23 @@ class Panel:
                   repo_tools=None) -> "Panel":
         return cls(summary, state=PanelState.model_validate_json(data), run_tests=run_tests, repo_tools=repo_tools)
 
+    @classmethod
+    def retake(cls, summary: ProjectSummary, previous_session: str, report: Report, previous: PanelState,
+               run_tests: TestRunner | None = None, repo_tools=None) -> "Panel":
+        """A shorter viva on the topics the student found hardest last time. The plan comes from code, not the model:
+        it is built from the previous report's scores, so it can't drift to topics the student already handled."""
+        moderator = Moderator(summary, tuple(previous.examiners))
+        plan = moderator.retake_plan(report, previous.plan)
+        state = PanelState(
+            examiners=previous.examiners, plan=plan,
+            queues={r: [t for t in plan.topics if t.examiner == r] for r in previous.examiners},
+            max_questions=min(MAX_QUESTIONS, RETAKE_QUESTIONS_PER_TOPIC * len(plan.topics)),
+            previous=PreviousAttempt(session_id=previous_session, overall_score=report.overall_score,
+                                     topics={t.topic: t.confidence for t in report.topics}),
+            avoid_questions={t.title: [p.question for p in previous.transcript if p.topic == t.title] for t in plan.topics},
+        )
+        return cls(summary, state=state, run_tests=run_tests, repo_tools=repo_tools)
+
     @property
     def done(self) -> bool:
         return self.state.done
@@ -83,12 +105,13 @@ class Panel:
     # ---------- session flow ----------
 
     def start(self) -> Iterator[Event]:
-        yield Event(speaker="moderator", message="Reading your project and planning the panel…",
-                    reasoning="Moderator is assigning topics so examiners don't overlap.")
-        plan = self.moderator.plan()
-        self.state.plan = plan
-        self.state.queues = {r: [t for t in plan.topics if t.examiner == r] for r in self.state.examiners}
-        message, reasoning = self.moderator.plan_announcement(plan)
+        if self.state.plan is None:
+            yield Event(speaker="moderator", message="Reading your project and planning the panel…",
+                        reasoning="Moderator is assigning topics so examiners don't overlap.")
+            self.state.plan = self.moderator.plan()
+            self.state.queues = {r: [t for t in self.state.plan.topics if t.examiner == r] for r in self.state.examiners}
+        plan = self.state.plan
+        message, reasoning = self.moderator.plan_announcement(plan, retake=self.state.previous)
         yield Event(speaker="moderator", message=message, reasoning=reasoning)
 
         first = self.moderator.next_speaker(None, self.state.queues)
@@ -109,7 +132,7 @@ class Panel:
         asker = self.examiners[turn.examiner]
 
         # 0. "Can you repeat that?" — re-ask more simply, ungraded, once per question.
-        if kind == "clarify" and turn.kind != "rephrase" and len(st.transcript) < MAX_QUESTIONS:
+        if kind == "clarify" and turn.kind != "rephrase" and len(st.transcript) < st.max_questions:
             try:
                 q = asker.rephrase(st.transcript)
             except LLMError:
@@ -141,7 +164,7 @@ class Panel:
             answer=clip_answer(turn.answer), verdict=d.verdict, judgement=d.judgement,
         ))
 
-        out_of_time = len(st.transcript) >= MAX_QUESTIONS
+        out_of_time = len(st.transcript) >= st.max_questions
 
         # 1b. A testable claim takes priority: the Engineer checks it in the sandbox.
         if d.testable_claim and not out_of_time and self._can_verify():
@@ -177,7 +200,7 @@ class Panel:
 
         # 3. Moderator hands the floor to the next examiner with topics left.
         if out_of_time:
-            yield from self._finish(f"Question limit ({MAX_QUESTIONS}) reached.")
+            yield from self._finish(f"Question limit ({st.max_questions}) reached.")
             return
         nxt = self.moderator.next_speaker(turn.examiner, st.queues)
         if nxt is None:
@@ -277,7 +300,8 @@ class Panel:
 
     def _open(self, role: Role) -> Iterator[Event]:
         topic = self.state.queues[role][0]
-        q = self.examiners[role].open_topic(topic, self.state.transcript)  # pop only after this succeeds
+        q = self.examiners[role].open_topic(topic, self.state.transcript,  # pop only after this succeeds
+                                            avoid=self.state.avoid_questions.get(topic.title, []))
         self.state.queues[role].pop(0)
         self.state.follow_ups_on_topic = 0
         yield self._ask(role, "open", topic.title, q.file_ref, q.question, q.reasoning)

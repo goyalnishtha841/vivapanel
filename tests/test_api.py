@@ -89,3 +89,38 @@ def test_daily_session_cap(client, monkeypatch):
     assert client.post("/session", json={"repo_url": SAMPLE}).status_code == 200
     r = client.post("/session", json={"repo_url": SAMPLE})
     assert r.status_code == 429 and r.json()["error"] == "daily_limit"
+
+
+def finish_viva(client, answer="It reads then updates in two queries."):
+    sid = client.post("/session", json={"repo_url": SAMPLE}).json()["session_id"]
+    while wait_for(client, sid, {"awaiting", "done", "error"}) == "awaiting":
+        client.post("/answer", json={"session_id": sid, "answer": answer})
+    return sid
+
+
+def test_retake_over_http(client):
+    first = finish_viva(client)
+    sid = client.post("/session", json={"retake_of": first}).json()["session_id"]
+    assert sid != first
+    while wait_for(client, sid, {"awaiting", "done", "error"}) == "awaiting":
+        client.post("/answer", json={"session_id": sid, "answer": "borrow_book checks then updates separately."})
+    report = client.get(f"/report/{sid}").json()
+    assert report["previous"]["session_id"] == first
+    assert report["repo_url"] == SAMPLE
+
+
+def test_retake_needs_a_finished_viva(client):
+    assert client.post("/session", json={"retake_of": "nope"}).status_code == 404
+    sid = client.post("/session", json={"repo_url": SAMPLE}).json()["session_id"]
+    wait_for(client, sid, {"awaiting"})
+    r = client.post("/session", json={"retake_of": sid})
+    assert r.status_code == 409 and r.json()["error"] == "nothing_to_retake"
+
+
+def test_session_info_reports_the_question_limit(client):
+    first = finish_viva(client)
+    assert client.get(f"/session/{first}").json()["max_questions"] == 12
+    sid = client.post("/session", json={"retake_of": first}).json()["session_id"]
+    wait_for(client, sid, {"awaiting"})
+    info = client.get(f"/session/{sid}").json()
+    assert info["retake_of"] == first and info["max_questions"] < 12

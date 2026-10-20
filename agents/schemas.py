@@ -206,6 +206,13 @@ class StudyStep(BaseModel):
     minutes: int
 
 
+class PreviousAttempt(BaseModel):
+    """The viva a retake builds on, so the report can show progress."""
+    session_id: str
+    overall_score: int
+    topics: dict[str, Optional[int]] = Field(description="Topic title -> confidence last time (None = not reached).")
+
+
 class Report(BaseModel):
     repo_url: str
     project: str
@@ -220,6 +227,7 @@ class Report(BaseModel):
     study_plan: list[StudyStep]
     recruiter_summary: str
     questions_asked: int
+    previous: Optional[PreviousAttempt] = None  # set on a retake
     generated_at: str = Field(default_factory=now_iso)
 
 

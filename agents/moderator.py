@@ -15,10 +15,12 @@ from pathlib import Path
 from . import llm
 from .examiner import DISPLAY, render_summary
 from .guardrails import file_ref_exists, split_ref
-from .schemas import Examiner as Role, KeyFile, PanelPlan, PlannedTopic, ProjectSummary, Turn
+from .schemas import Examiner as Role, KeyFile, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report, Turn
 
 PROMPTS = Path(__file__).parent / "prompts"
 ORDER: tuple[Role, ...] = ("professor", "engineer", "junior")
+RETAKE_BAR = 60         # topics below this confidence are retaken
+MAX_RETAKE_TOPICS = 3
 MAX_TOPICS_PER_EXAMINER = 2
 
 # Offline planning: keywords that pull a file into an examiner's lane.
@@ -128,6 +130,20 @@ class Moderator:
             return (hits - 3 * load[r], -((self.examiners.index(r) - tie_break) % len(self.examiners)))
         return max(open_roles, key=score)
 
+    def retake_plan(self, report: Report, previous_plan: PanelPlan | None) -> PanelPlan:
+        """The weakest reached topics from the last report (below RETAKE_BAR, worst first), same examiner and file.
+        If every topic cleared the bar, the two lowest are retaken anyway: a retake is always on something."""
+        anchors = {t.title: t.file_ref for t in (previous_plan.topics if previous_plan else [])}
+        reached = sorted((t for t in report.topics if t.confidence is not None and t.examiner in self.examiners
+                          and file_ref_exists(anchors.get(t.topic) or t.file_ref, self.summary)),
+                         key=lambda t: t.confidence)
+        chosen = [t for t in reached if t.confidence < RETAKE_BAR][:MAX_RETAKE_TOPICS] or reached[:2]
+        return PanelPlan(topics=[
+            PlannedTopic(examiner=t.examiner, title=t.topic, file_ref=anchors.get(t.topic) or t.file_ref,
+                         why=f"Retake: scored {t.confidence}/100 last time. {t.note}".strip())
+            for t in chosen
+        ])
+
     # ---------- turn-taking ----------
 
     def next_speaker(self, current: Role | None, queues: dict[str, list[PlannedTopic]]) -> Role | None:
@@ -150,14 +166,18 @@ class Moderator:
 
     # ---------- what the moderator says out loud ----------
 
-    def plan_announcement(self, plan: PanelPlan) -> tuple[str, str]:
+    def plan_announcement(self, plan: PanelPlan, retake: PreviousAttempt | None = None) -> tuple[str, str]:
         by_role: dict[str, list[str]] = {}
         for t in plan.topics:
-            by_role.setdefault(t.examiner, []).append(t.title)
-        body = "; ".join(
-            f"the {DISPLAY[r]} will ask about {' and '.join(_soft_lower(t) for t in titles)}"
-            for r, titles in by_role.items()
-        )
-        message = f"Welcome to your viva. {body[0].upper()}{body[1:]}."
+            label = _soft_lower(t.title)
+            if retake and retake.topics.get(t.title) is not None:
+                label += f" ({retake.topics[t.title]}/100 last time)"
+            by_role.setdefault(t.examiner, []).append(label)
+        body = "; ".join(f"the {DISPLAY[r]} will ask about {' and '.join(labels)}" for r, labels in by_role.items())
+        if retake:
+            message = ("Welcome back. This retake goes over the topics you found hardest last time, with new questions: "
+                       f"{body}.")
+        else:
+            message = f"Welcome to your viva. {body[0].upper()}{body[1:]}."
         reasoning = " | ".join(f"{DISPLAY[t.examiner]} → {split_ref(t.file_ref)[0]}: {t.why}" for t in plan.topics)
         return message, reasoning

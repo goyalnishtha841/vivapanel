@@ -12,7 +12,7 @@ import { buildTimeline, cleanQuestion, isEnd, isQuestion, parsePlan } from "../l
 import { go } from "../lib/route.js";
 import { canListen, canSpeak, listen, speak, stopSpeaking } from "../lib/speech.js";
 
-const MAX_QUESTIONS = 12; // agents/panel.py
+const MAX_QUESTIONS = 12; // agents/panel.py; a retake has fewer (from the session info)
 
 const DOT = { strong: "bg-good", partial: "bg-warn", weak: "bg-bad", no_answer: "bg-muted/60" };
 
@@ -23,6 +23,18 @@ export default function Session({ id, theme, onToggleTheme }) {
   const [voiceOn, setVoiceOn] = useState(false);
   const [drawer, setDrawer] = useState(() => window.innerWidth >= 1280);
   const [startedAt] = useState(() => Date.now());
+  const [maxQuestions, setMaxQuestions] = useState(MAX_QUESTIONS);
+
+  // The plan (and so the question limit) is saved once the first question is out.
+  const started = events.some((e) => e.speaker in EXAMINERS);
+  useEffect(() => {
+    if (!started) return;
+    let alive = true;
+    api.sessionInfo?.(id).then((s) => alive && s?.max_questions && setMaxQuestions(s.max_questions)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [id, started]);
 
   useEffect(() => {
     const close = api.openStream(id, (e) => {
@@ -83,7 +95,7 @@ export default function Session({ id, theme, onToggleTheme }) {
   return (
     <div className="relative isolate flex h-[100svh] flex-col">
       <Ambient />
-      <TopBar theme={theme} onToggleTheme={onToggleTheme} answers={answers} awaitingIndex={awaiting ? answers.length : -1}
+      <TopBar maxQuestions={maxQuestions} theme={theme} onToggleTheme={onToggleTheme} answers={answers} awaitingIndex={awaiting ? answers.length : -1}
         startedAt={startedAt} done={done || failed} voiceOn={voiceOn}
         onToggleVoice={() => { setVoiceOn((v) => !v); stopSpeaking(); }}
         onToggleDrawer={() => setDrawer((v) => !v)} />
@@ -131,7 +143,7 @@ export default function Session({ id, theme, onToggleTheme }) {
 
 /* ------------------------------------------------------------------ top bar */
 
-function TopBar({ theme, onToggleTheme, answers, awaitingIndex, startedAt, done, voiceOn, onToggleVoice, onToggleDrawer }) {
+function TopBar({ theme, onToggleTheme, maxQuestions, answers, awaitingIndex, startedAt, done, voiceOn, onToggleVoice, onToggleDrawer }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (done) return;
@@ -152,8 +164,8 @@ function TopBar({ theme, onToggleTheme, answers, awaitingIndex, startedAt, done,
       </div>
 
       {/* scorecard: one dot per question, coloured by the verdict */}
-      <div className="hidden items-center gap-1.5 sm:flex" aria-label={`${answers.length} of ${MAX_QUESTIONS} questions answered`}>
-        {Array.from({ length: MAX_QUESTIONS }, (_, i) => {
+      <div className="hidden items-center gap-1.5 sm:flex" aria-label={`${answers.length} of ${maxQuestions} questions answered`}>
+        {Array.from({ length: maxQuestions }, (_, i) => {
           const a = answers[i];
           const cls = a?.verdict ? DOT[a.verdict] : a ? "bg-ink/40" : i === awaitingIndex ? "bg-brand ring-4 ring-brand/20" : "bg-ink/10";
           return <span key={i} title={a?.verdict ? VERDICT[a.verdict].label : undefined} className={`h-2.5 w-2.5 rounded-full transition-colors duration-500 ${cls}`} />;

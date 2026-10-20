@@ -104,6 +104,15 @@ examiner's verdict. That is how the Professor can say "Earlier you told the Engi
 challenge a verdict. The whole session state is one Pydantic object (`PanelState`, about 3 KB), saved to SQLite after
 every answer, so any request can rebuild the panel.
 
+## 5b. Retake (re-viva)
+
+After the report, the student can retake only their weakest topics. The plan comes from code, not the model
+(`Moderator.retake_plan`): up to 3 topics that scored below 60 last time, worst first, each kept with the same
+examiner and file. If everything cleared 60, the two lowest are retaken anyway. The viva is capped at 3 questions per
+topic, examiners are told it's a retake and shown last time's questions, and code rejects a repeat of any of them
+(the same duplicate check used within a session). The report carries the previous scores, and the scoring agent is
+asked to say whether the student improved. No new repo summary call is made: the retake reuses the project summary.
+
 ## 6. Scoring
 
 ```

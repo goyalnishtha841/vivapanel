@@ -29,6 +29,18 @@ const live = {
     }));
     return r.session_id;
   },
+  // A shorter viva on the weakest topics of a finished session (same repo, new questions).
+  async retake(id) {
+    const r = await json(await fetch(`${BASE}/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retake_of: id }),
+    }));
+    return r.session_id;
+  },
+  async sessionInfo(id) {
+    return json(await fetch(`${BASE}/session/${id}`));
+  },
   openStream(id, onEvent, onError) {
     let es = null;
     let closed = false;

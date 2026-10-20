@@ -152,7 +152,8 @@ class Examiner:
 
     # ---------- moves ----------
 
-    def open_topic(self, topic: PlannedTopic, transcript: list[Turn]) -> QuestionDecision:
+    def open_topic(self, topic: PlannedTopic, transcript: list[Turn], avoid: list[str] = ()) -> QuestionDecision:
+        """avoid: questions asked on this topic in an earlier attempt (retake); the new opener must differ."""
         if llm.is_offline():
             d = self._offline_open(topic)
         else:
@@ -163,9 +164,12 @@ class Examiner:
                 f"- Topic: {topic.title}\n- Anchor: {topic.file_ref}\n- Why it matters: {topic.why}\n\n"
                 "Ask your opening question on it, about the anchor file above — other files belong to other topics. "
                 "If the student already said something relevant earlier, build on it rather than repeating it."
+                + ("\n\nThis is a RETAKE: the student struggled with this topic last time. Ask a new question from a "
+                   "different angle on the same code, not one of these from last time:\n"
+                   + "\n".join(f"- {q}" for q in avoid) if avoid else "")
             )
             d = self._grounded(user, QuestionDecision, lambda d: d.file_ref, default_ref=topic.file_ref,
-                               question_of=lambda d: d.question, earlier=_asked(transcript))
+                               question_of=lambda d: d.question, earlier=_asked(transcript) + list(avoid))
             if split_ref(d.file_ref)[0] != split_ref(topic.file_ref)[0]:
                 d = d.model_copy(update={"file_ref": topic.file_ref})  # keep the event anchored to the plan
         return d.model_copy(update={"question": ensure_question_cites(d.question, d.file_ref)})

@@ -32,7 +32,8 @@ def error(status: int, code: str, detail: str) -> JSONResponse:
 
 
 class NewSession(BaseModel):
-    repo_url: str = Field(max_length=300)
+    repo_url: str = Field(default="", max_length=300)
+    retake_of: str | None = Field(default=None, max_length=40)  # a finished session: retake its weakest topics
 
 
 class Answer(BaseModel):
@@ -47,8 +48,15 @@ def health():
 
 @app.post("/session")
 def create_session(body: NewSession):
-    url = body.repo_url.strip()
-    if not runner._is_sample(url):
+    prev = None
+    if body.retake_of:
+        prev = store.get_session(body.retake_of)
+        if not prev:
+            return error(404, "session_not_found", "No session with that id.")
+        if not runner.can_retake(prev):
+            return error(409, "nothing_to_retake", "Finish the viva first: a retake needs at least one assessed topic.")
+    url = prev["repo_url"] if prev else body.repo_url.strip()
+    if not prev and not runner._is_sample(url):
         try:
             parse_repo_url(url)
         except IngestError as e:
@@ -57,7 +65,10 @@ def create_session(body: NewSession):
         return error(429, "daily_limit", "Today's vivas are used up on this demo. Please try again tomorrow.")
     sid = uuid.uuid4().hex[:12]
     store.create_session(sid, url)
-    runner.start(sid, url)
+    if prev:
+        runner.start_retake(sid, body.retake_of)
+    else:
+        runner.start(sid, url)
     return {"session_id": sid}
 
 
@@ -66,7 +77,9 @@ def session_status(sid: str):
     row = store.get_session(sid)
     if not row:
         return error(404, "session_not_found", "No session with that id.")
-    return {"session_id": sid, "repo_url": row["repo_url"], "status": row["status"], "error": row["error"]}
+    state = json.loads(row["state"]) if row["state"] else {}
+    return {"session_id": sid, "repo_url": row["repo_url"], "status": row["status"], "error": row["error"],
+            "max_questions": state.get("max_questions", 12), "retake_of": (state.get("previous") or {}).get("session_id")}
 
 
 @app.post("/answer")

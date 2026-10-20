@@ -67,6 +67,7 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
         ],
         recruiter_summary=narrative.recruiter_summary,
         questions_asked=len(transcript),
+        previous=state.previous,
     )
 
 
@@ -161,6 +162,11 @@ def _render_for_scorer(state: PanelState, topics: list[TopicScore]) -> str:
     for t in topics:
         lines.append(f"- {t.topic} ({DISPLAY[t.examiner]}): "
                      + (f"{t.confidence}/100, verdicts {t.verdicts}" if t.confidence is not None else "not reached"))
+    if state.previous:
+        lines.append("\n## This was a retake")
+        lines.append("Same topics, new questions. Scores on these topics in the previous attempt: "
+                     + ", ".join(f"{t.topic} {state.previous.topics.get(t.topic)}" for t in topics)
+                     + ". Say in the headline whether the student improved, citing a topic.")
     return "\n".join(lines)
 
 

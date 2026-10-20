@@ -87,6 +87,8 @@ days: average question length went from 31 to 22 words, and questions over 35 wo
 2. Verification against reality: the Engineer runs the student's own tests and reads them to see whether a passing
    test actually proves the claim. "Tests pass" is not treated as "claim proven".
 3. Evidence-backed output for recruiters: every judgement links to a quote or a test result.
+4. A learning loop, not just a grade: "Retake my weak topics" runs a shorter viva on what the student got wrong,
+   with new questions (code rejects last time's), and the report shows the change per topic (e.g. 10 → 65).
 
 ## User experience (10)
 

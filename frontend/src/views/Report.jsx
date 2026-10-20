@@ -56,7 +56,7 @@ export default function Report({ id, theme, onToggleTheme }) {
 
       {error && <div role="alert" className="mx-auto mt-10 max-w-[600px] rounded-2xl border border-bad/40 bg-bad/10 p-5 text-bad">{error}</div>}
       {!report && !error && <Loading />}
-      {report && <Body r={report} />}
+      {report && <Body r={report} id={id} />}
     </div>
   );
 }
@@ -75,9 +75,10 @@ function Loading() {
   );
 }
 
-function Body({ r }) {
+function Body({ r, id }) {
   const rd = READINESS[r.readiness] || READINESS.needs_work;
   const reached = r.topics.filter((t) => t.confidence !== null);
+  const before = r.previous?.topics || {};
   return (
     <main className="mx-auto max-w-[1100px] px-4 pb-24 pt-10 sm:px-6">
 
@@ -89,6 +90,7 @@ function Body({ r }) {
           <div className="flex flex-wrap items-center gap-2 text-[15px] text-muted">
             Viva report for <span className="font-medium text-ink">{r.project}</span>
             {MODE === "demo" && <span title="The real report from the recorded session you just replayed" className="rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">demo</span>}
+            {r.previous && <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">retake</span>}
           </div>
           <div className={`mt-2 text-[30px] font-bold leading-tight sm:text-[38px] ${rd.cls}`}>{rd.label}</div>
           <p className="mt-3 font-serif text-[22px] italic leading-snug sm:text-[25px]">“{r.headline}”</p>
@@ -98,8 +100,11 @@ function Body({ r }) {
             <Chip>{r.test_evidence.length} claim{r.test_evidence.length === 1 ? "" : "s"} tested</Chip>
             <Chip>{r.unanswered.length} unanswered</Chip>
           </div>
+          {MODE === "live" && reached.length > 0 && <Retake id={id} />}
         </div>
       </section>
+
+      {r.previous && <Progress r={r} />}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-8">
@@ -117,7 +122,12 @@ function Body({ r }) {
                         <span className="text-[16px] font-semibold">{t.topic}</span>
                         <span className={`ml-2 text-[12px] font-medium ${tone.text}`}>{ex.short}</span>
                       </div>
-                      <span className="shrink-0 text-[15px] font-semibold tabular-nums">{t.confidence ?? "—"}</span>
+                      <span className="flex shrink-0 items-baseline gap-2 text-[15px] font-semibold tabular-nums">
+                        {before[t.topic] != null && t.confidence !== null && (
+                          <span className="text-[12px] font-medium text-muted">was {before[t.topic]}</span>
+                        )}
+                        {t.confidence ?? "—"}
+                      </span>
                     </div>
                     <div className="mt-2 h-2 rounded-full bg-raised">
                       {t.confidence !== null && (
@@ -317,6 +327,75 @@ function StudyPlan({ steps }) {
         </ol>
       </section>
   );
+}
+
+function Retake({ id }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function start() {
+    setBusy(true);
+    setError("");
+    try {
+      go(`/session/${await api.retake(id)}`);
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="no-print mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <button onClick={start} disabled={busy}
+        className="rounded-full bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-opacity disabled:opacity-60">
+        {busy ? "Setting up your retake…" : "Retake my weak topics →"}
+      </button>
+      <span className="text-[14px] text-muted">After the study plan: new questions on the topics you found hardest.</span>
+      {error && <p role="alert" className="w-full text-[13px] text-bad">{error}</p>}
+    </div>
+  );
+}
+
+function Progress({ r }) {
+  const rows = r.topics
+    .filter((t) => t.confidence !== null && r.previous.topics[t.topic] != null)
+    .map((t) => ({ topic: t.topic, before: r.previous.topics[t.topic], after: t.confidence }));
+  if (rows.length === 0) return null;
+  const avg = (k) => Math.round(rows.reduce((n, x) => n + x[k], 0) / rows.length);
+  const delta = avg("after") - avg("before");
+  return (
+    <section className="mt-8 rounded-[22px] border border-line bg-surface p-6 sm:p-8">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-[21px] font-bold">Since your last attempt</h2>
+        <button onClick={() => go(`/report/${r.previous.session_id}`)} className="no-print text-[14px] font-medium text-brand hover:underline">
+          Previous report
+        </button>
+      </div>
+      <p className="mt-2 text-[16px]">
+        On the topics you retook: <span className="font-semibold tabular-nums">{avg("before")} → {avg("after")}</span>
+        <Delta value={delta} />
+      </p>
+      <ul className="mt-5 space-y-4">
+        {rows.map((x) => (
+          <li key={x.topic}>
+            <div className="flex items-baseline justify-between gap-3 text-[15px]">
+              <span className="min-w-0 font-medium">{x.topic}</span>
+              <span className="shrink-0 tabular-nums">{x.before} → <span className="font-semibold">{x.after}</span><Delta value={x.after - x.before} /></span>
+            </div>
+            <div className="relative mt-2 h-2 rounded-full bg-raised">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-ink/20" style={{ width: `${Math.max(x.before, 1)}%` }} />
+              <motion.div className={`absolute inset-y-0 left-0 rounded-full ${x.after >= x.before ? "bg-good" : "bg-bad"}`}
+                initial={{ width: `${Math.max(x.before, 1)}%` }} animate={{ width: `${Math.max(x.after, 1)}%` }}
+                transition={{ duration: 1.1, delay: 0.3, ease: [0.22, 1, 0.36, 1] }} style={{ opacity: 0.85 }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Delta({ value }) {
+  const cls = value > 0 ? "bg-good/15 text-good" : value < 0 ? "bg-bad/15 text-bad" : "bg-raised text-muted";
+  return <span className={`ml-2 rounded-full px-2 py-0.5 text-[12px] font-semibold tabular-nums ${cls}`}>{value > 0 ? "+" : ""}{value}</span>;
 }
 
 function Recruiter({ text }) {
