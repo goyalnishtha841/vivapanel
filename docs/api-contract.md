@@ -24,6 +24,9 @@ Errors: `{"error": "<code>", "detail": "<human message>"}` with codes
 login as `"student"` in `POST /session` for team-project mode; the summary and report then carry
 `student: {login, commits, team_commits, teammates, files: [{path, by_student, total}]}` and topics get `own_work`.
 
+`GET /code/{id}?path=…` → `{path, content, partial}`: a file from the session's repo for the code viewer. Only paths in
+the summary's file list; after the viva the clone is gone and key files fall back to their excerpt (`partial: true`).
+
 `GET /session/{id}` also returns `max_questions` (12, fewer on a retake) and `retake_of`. A retake's report has
 `previous: {session_id, overall_score, topics: {title: confidence}}` so the UI can show progress.
 

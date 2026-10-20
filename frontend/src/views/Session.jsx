@@ -7,6 +7,8 @@ import Logo from "../components/Logo.jsx";
 import { ThemeToggle } from "../components/Nav.jsx";
 import { File, Mic, Send, Speaker, Wrench } from "../components/Icons.jsx";
 import { api, DEMO_REPO, MODE } from "../lib/api.js";
+import { focusOf } from "../lib/code.js";
+import CodeViewer from "../components/CodeViewer.jsx";
 import { EXAMINERS, ORDER, TONE, VERDICT } from "../lib/examiners.js";
 import { buildTimeline, cleanQuestion, isEnd, isQuestion, parsePlan } from "../lib/events.js";
 import { go } from "../lib/route.js";
@@ -58,6 +60,7 @@ export default function Session({ id, theme, onToggleTheme }) {
   const awaiting = !done && !failed && !sending && Boolean(lastReal) && isQuestion(lastReal);
   const thinking = !done && !failed && !awaiting;
 
+  const focus = useMemo(() => focusOf(events), [events]);
   const questions = timeline.filter((i) => i.type === "question");
   const current = questions[questions.length - 1];
   const currentIdx = timeline.lastIndexOf(current);
@@ -135,7 +138,7 @@ export default function Session({ id, theme, onToggleTheme }) {
         </main>
 
         {/* ------------------------------------------------ transcript drawer */}
-        <Drawer open={drawer} onClose={() => setDrawer(false)} timeline={timeline} plan={plan} />
+        <Drawer open={drawer} onClose={() => setDrawer(false)} timeline={timeline} plan={plan} sessionId={id} focus={focus} />
       </div>
     </div>
   );
@@ -184,7 +187,7 @@ function TopBar({ theme, onToggleTheme, maxQuestions, answers, awaitingIndex, st
         )}
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <button onClick={onToggleDrawer} className="ml-1 rounded-full px-4 py-2 text-[14px] font-medium text-ink transition-colors hover:bg-ink/[0.06]">
-          Transcript
+          Code &amp; transcript
         </button>
       </div>
     </header>
@@ -404,8 +407,8 @@ function Composer({ enabled, onSend, current }) {
 
 /* ------------------------------------------------------------------ transcript drawer */
 
-function Drawer({ open, onClose, timeline, plan }) {
-  const [tab, setTab] = useState("transcript");
+function Drawer({ open, onClose, timeline, plan, sessionId, focus }) {
+  const [tab, setTab] = useState("code");
   const end = useRef(null);
   useEffect(() => {
     if (open && tab === "transcript") end.current?.scrollIntoView({ block: "end" });
@@ -422,7 +425,7 @@ function Drawer({ open, onClose, timeline, plan }) {
             className="fixed inset-y-0 right-0 z-50 flex w-[min(400px,92vw)] flex-col border-l border-line bg-surface lg:static lg:z-auto lg:w-[380px] lg:bg-surface/70 lg:backdrop-blur">
             <div className="flex items-center justify-between px-5 pt-5">
               <div className="flex gap-1 rounded-full bg-raised p-1">
-                {[["transcript", "Transcript"], ["plan", "The plan"]].map(([k, label]) => (
+                {[["code", "Code"], ["transcript", "Transcript"], ["plan", "The plan"]].map(([k, label]) => (
                   <button key={k} onClick={() => setTab(k)}
                     className={`rounded-full px-4 py-1.5 text-[14px] font-medium transition-colors ${tab === k ? "bg-surface text-ink shadow-sm" : "text-muted"}`}>
                     {label}
@@ -432,7 +435,9 @@ function Drawer({ open, onClose, timeline, plan }) {
               <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-ink/[0.06] hover:text-ink">×</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-              {tab === "transcript" ? (
+              {tab === "code" ? (
+                <CodeViewer sessionId={sessionId} focus={focus} />
+              ) : tab === "transcript" ? (
                 <ol className="space-y-4">
                   {timeline.map((item, i) => <Row key={i} item={item} />)}
                   <li ref={end} />

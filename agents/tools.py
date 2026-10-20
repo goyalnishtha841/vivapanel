@@ -55,6 +55,13 @@ class LocalRepoTools:
         p = (self.root / path.lstrip("/")).resolve()
         return p if p.is_relative_to(self.root) and p.is_file() else None
 
+    def read_raw(self, path: str) -> str | None:
+        """Whole file as text for the UI's code viewer; None if missing, outside the repo, or too large."""
+        p = self._resolve(path)
+        if p is None or p.stat().st_size > MAX_FILE_BYTES:
+            return None
+        return p.read_text(errors="replace")
+
     def read_file(self, path: str, max_lines: int = 120, start_line: int = 1) -> dict:
         p = self._resolve(path)
         if p is None:

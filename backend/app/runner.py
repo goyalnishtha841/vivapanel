@@ -41,6 +41,11 @@ def _is_sample(url: str) -> bool:
     return url.rstrip("/").removesuffix(".git").lower() == SAMPLE_REPO
 
 
+def code_root(sid: str, summary: ProjectSummary) -> Path:
+    """Where the session's code lives while the viva runs (the clone is deleted after scoring)."""
+    return MOCK_REPO if _is_sample(summary.repo_url) else config.REPOS_DIR / sid
+
+
 def _tools(sid: str, summary: ProjectSummary):
     """(run_tests, repo_tools) for a session. Real repos get no sandbox until it exists (roadmap step 3)."""
     if _is_sample(summary.repo_url):

@@ -137,3 +137,13 @@ def test_contributors_endpoint(client, monkeypatch):
 def test_invalid_student_login_is_400(client):
     r = client.post("/session", json={"repo_url": "https://github.com/a/b", "student": "../etc"})
     assert r.status_code == 400 and r.json()["error"] == "invalid_student"
+
+
+def test_code_viewer_serves_only_repo_files(client):
+    sid = client.post("/session", json={"repo_url": SAMPLE}).json()["session_id"]
+    wait_for(client, sid, {"awaiting"})
+    r = client.get(f"/code/{sid}", params={"path": "app/db.py"})
+    assert r.status_code == 200 and "def get_connection" in r.json()["content"] and not r.json()["partial"]
+    for bad in ["../../../etc/passwd", "/etc/passwd", "app/../../agents/llm.py", "app/nope.py"]:
+        assert client.get(f"/code/{sid}", params={"path": bad}).status_code == 404, bad
+    assert client.get("/code/nope", params={"path": "app/db.py"}).status_code == 404

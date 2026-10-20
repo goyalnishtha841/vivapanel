@@ -5,7 +5,7 @@ React 18 + Vite + Tailwind + framer-motion. Three screens, hash-routed:
 | Route | Screen |
 |---|---|
 | `#/` | Landing: repo-link hero, replay of a recorded session, "Would your answer survive?" (real verdicts from the live agent, `src/mock/survive.json`), the panel, how it works, FAQ |
-| `#/session/<id>` | The panel "on stage": three seated examiners (the one asking is lit), the current question large, feedback on your last answer, the Engineer's code checks live, a mic-first answer box, a 12-dot scorecard, and a transcript/plan drawer |
+| `#/session/<id>` | The panel "on stage" (the drawer's Code tab shows the file under discussion, function highlighted, following the Engineer's reads and searches): three seated examiners (the one asking is lit), the current question large, feedback on your last answer, the Engineer's code checks live, a mic-first answer box, a 12-dot scorecard, and a transcript/plan drawer |
 | `#/report/<id>` | Report: score ring, confidence by topic, weak spots with transcript quotes, test evidence, unanswered questions, study plan checklist, recruiter summary, save as PDF |
 
 ## Run

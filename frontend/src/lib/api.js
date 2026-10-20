@@ -8,6 +8,7 @@
  */
 import recorded from "../mock/session.json";
 import recordedReport from "../mock/report.json";
+import demoCode from "../mock/code.json"; // the sample project's files, for the code viewer
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 const BASE = API_URL.replace(/\/+$/, "");
@@ -42,6 +43,9 @@ const live = {
       body: JSON.stringify({ retake_of: id }),
     }));
     return r.session_id;
+  },
+  async code(id, path) {
+    return json(await fetch(`${BASE}/code/${id}?path=${encodeURIComponent(path)}`));
   },
   async sessionInfo(id) {
     return json(await fetch(`${BASE}/session/${id}`));
@@ -101,6 +105,10 @@ function delayFor(e) {
 }
 
 const demo = {
+  async code(id, path) {
+    if (!(path in demoCode)) throw new Error("That file isn't in the sample project.");
+    return { path, content: demoCode[path], partial: false };
+  },
   async contributors() {
     return [];
   },

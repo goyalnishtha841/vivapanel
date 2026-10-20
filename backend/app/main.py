@@ -16,6 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agents import llm
+from agents.schemas import ProjectSummary
+from agents.tools import LocalRepoTools
 
 from . import config, runner, store
 from .ingest import IngestError, parse_repo_url
@@ -136,6 +138,26 @@ async def stream(sid: str, request: Request, last_event_id: str | None = Header(
 
     return StreamingResponse(events(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/code/{sid}")
+def code(sid: str, path: str):
+    """One file from the session's repo, for the code viewer beside the question. Only listed repo paths."""
+    row = store.get_session(sid)
+    if not row:
+        return error(404, "session_not_found", "No session with that id.")
+    if not row["summary"]:
+        return error(409, "not_ready", "The project is still being read.")
+    summary = ProjectSummary.model_validate_json(row["summary"])
+    if path not in summary.files:
+        return error(404, "file_not_found", "That file isn't in this repository.")
+    text = LocalRepoTools(runner.code_root(sid, summary)).read_raw(path)
+    if text is None:  # clone gone (viva finished) or too large: fall back to the snippet the panel saw
+        kf = next((k for k in summary.key_files if k.path == path), None)
+        if not kf:
+            return error(410, "code_unavailable", "This file is no longer available for this session.")
+        return {"path": path, "content": kf.snippet, "partial": True}
+    return {"path": path, "content": text, "partial": False}
 
 
 @app.get("/report/{sid}")

@@ -12,7 +12,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
-![Tests](https://img.shields.io/badge/tests-96%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-97%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
 [![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
@@ -83,6 +83,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | 📄 **Evidence-backed report** | Code computes every score and copies every quote; the model writes the study plan and recruiter summary, and every reference is validated |
 | 🛟 **Never stalls on limits** | Cross-provider fallback (Groq big → Groq small → Gemini flash → flash-lite) with a 45 s timeout per call |
 | 🎙️ **Voice** | Questions are read aloud and answers can be spoken (browser speech APIs) |
+| 🧾 **Code beside the question** | The real file opens next to every question with the function in question lit up, and it follows the Engineer live as it reads files and jumps to the lines its searches match |
 | ⚡ **Live streaming** | Agent turns, reasoning and tool activity stream to the UI over server-sent events |
 
 ---
@@ -97,7 +98,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 96 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 97 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | 🚧 Docker sandbox in progress; until then real repos are read but **never executed** (the sample project uses recorded test results) |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -275,6 +276,7 @@ All settings come from `.env` (see [.env.example](.env.example)).
 | `GET` | `/report/{id}` | The report (202 while it's being scored) |
 | `GET` | `/session/{id}` | Status, question limit, and the session it retakes |
 | `GET` | `/contributors?repo_url=` | Human contributors of a repo, for "which one are you?" |
+| `GET` | `/code/{id}?path=` | One repo file for the code viewer (listed paths only) |
 | `GET` | `/health` | Liveness and the active model |
 
 Full contract, including the event and report shapes: [docs/api-contract.md](docs/api-contract.md).
@@ -287,7 +289,7 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                      # 96 tests
+pytest -q                      # 97 tests
 ruff check agents backend tests
 ```
 
@@ -353,6 +355,7 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Test suite and CI on every push
 - [x] Re-viva: retake the weakest topics with new questions and see progress per topic
 - [x] Team-project mode: examine each member on the files they actually wrote (from git history)
+- [x] Code viewer beside each question, following the Engineer's reads and searches live
 
 **Next**
 

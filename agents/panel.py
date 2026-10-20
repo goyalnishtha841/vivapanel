@@ -293,7 +293,8 @@ class Panel:
                 msg = (f"Sandbox: {r.status} — {r.passed} passed, {r.failed} failed"
                        + (f", {r.errors} errors" if r.errors else "") + f" ({r.duration_s:.1f}s)")
                 why = r.command + (f" · failing: {', '.join(r.failing_tests)}" if r.failing_tests else "")
-        ref = args.get("path") or args.get("test_path") or None
+        first_match = (result.get("matches") or [{}])[0].get("path") if name == "search_code" else None
+        ref = args.get("path") or args.get("test_path") or first_match or None  # the code viewer jumps here
         return Event(speaker="system", message=msg, reasoning=why, file_ref=ref, tool_used=name)
 
     # ---------- helpers ----------
