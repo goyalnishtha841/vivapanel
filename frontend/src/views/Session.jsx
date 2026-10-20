@@ -26,13 +26,18 @@ export default function Session({ id, theme, onToggleTheme }) {
   const [drawer, setDrawer] = useState(() => window.innerWidth >= 1280);
   const [startedAt] = useState(() => Date.now());
   const [maxQuestions, setMaxQuestions] = useState(MAX_QUESTIONS);
+  const [hiring, setHiring] = useState(null);
 
   // The plan (and so the question limit) is saved once the first question is out.
   const started = events.some((e) => e.speaker in EXAMINERS);
   useEffect(() => {
     if (!started) return;
     let alive = true;
-    api.sessionInfo?.(id).then((s) => alive && s?.max_questions && setMaxQuestions(s.max_questions)).catch(() => {});
+    api.sessionInfo?.(id).then((s) => {
+      if (!alive || !s) return;
+      if (s.max_questions) setMaxQuestions(s.max_questions);
+      setHiring(s.hiring || null);
+    }).catch(() => {});
     return () => {
       alive = false;
     };
@@ -81,13 +86,13 @@ export default function Session({ id, theme, onToggleTheme }) {
     if (isQuestion(last)) speak(last.speaker, cleanQuestion(last.message));
   }, [events, voiceOn, last]);
 
-  async function send(text) {
+  async function send(text, meta) {
     const answer = text.trim();
     if (!awaiting || !answer) return;
     stopSpeaking();
     setSending(true);
     try {
-      await api.sendAnswer(id, answer); // the backend echoes it on the stream as a "student" event
+      await api.sendAnswer(id, answer, meta); // the backend echoes it on the stream as a "student" event
     } catch (e) {
       setError(e.message);
     } finally {
@@ -116,7 +121,7 @@ export default function Session({ id, theme, onToggleTheme }) {
                   <button onClick={() => go("/")} className="rounded-full bg-brand px-7 py-3 text-[16px] font-semibold text-white">Try another repo</button>
                 </div>
               ) : done ? (
-                <EndCard id={id} answered={answers.length} />
+                <EndCard id={id} answered={answers.length} hiring={hiring} />
               ) : (
                 <div className="flex min-h-full flex-col justify-center gap-5">
                   <AnimatePresence mode="wait">
@@ -324,7 +329,20 @@ function ToolSteps({ tools, live = false }) {
   );
 }
 
-function EndCard({ id, answered }) {
+function EndCard({ id, answered, hiring }) {
+  if (hiring) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex min-h-full flex-col items-center justify-center gap-5 py-10 text-center">
+        <h2 className="text-[34px] font-bold tracking-[-0.02em] sm:text-[44px]">
+          That's the end of your <span className="font-serif font-normal italic text-brand">viva.</span>
+        </h2>
+        <p className="max-w-md text-[17px] text-muted">
+          You answered {answered} questions. Your results are being prepared and will be shared with
+          {hiring.company ? ` ${hiring.company}` : " the recruiter"} for the {hiring.title} role. Thank you!
+        </p>
+      </motion.div>
+    );
+  }
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex min-h-full flex-col items-center justify-center gap-5 py-10 text-center">
       <h2 className="text-[34px] font-bold tracking-[-0.02em] sm:text-[44px]">
@@ -346,15 +364,22 @@ function Composer({ enabled, onSend, current }) {
   const [listening, setListening] = useState(false);
   const stopRef = useRef(null);
   const ref = useRef(null);
+  // how the answer was given (time since the question appeared, any paste): shown in screening reports
+  const shownAt = useRef(Date.now());
+  const pasted = useRef(false);
 
   useEffect(() => {
     if (enabled) ref.current?.focus();
+    if (enabled) {
+      shownAt.current = Date.now();
+      pasted.current = false;
+    }
   }, [enabled, current]);
 
   function submit(value = text) {
     if (!enabled || !value.trim()) return;
     stopRef.current?.();
-    onSend(value);
+    onSend(value, { seconds: Math.round((Date.now() - shownAt.current) / 100) / 10, pasted: pasted.current });
     setText("");
   }
 
@@ -380,6 +405,7 @@ function Composer({ enabled, onSend, current }) {
           ref={ref}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onPaste={() => { pasted.current = true; }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

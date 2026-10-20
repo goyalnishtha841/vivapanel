@@ -155,6 +155,8 @@ class Turn(BaseModel):
     answer: Optional[str] = None
     verdict: Optional[Verdict] = None
     judgement: str = ""
+    seconds: Optional[float] = None  # from the question appearing to the answer being sent (hiring integrity)
+    pasted: Optional[bool] = None    # the answer box received a paste
 
 
 class Assessment(BaseModel):
@@ -232,6 +234,29 @@ class StudyStep(BaseModel):
     minutes: int
 
 
+class RoleBrief(BaseModel):
+    """Hiring mode: the job this viva screens for. Steers the plan and the recruiter summary."""
+    title: str
+    company: str = ""
+    focus: list[str] = []
+    candidate: str = ""
+
+
+class Integrity(BaseModel):
+    """How the answers were given, from the browser: shown to the candidate and the recruiter alike."""
+    answers: int
+    pasted: int
+    median_seconds: Optional[float]
+    fast_long_answers: int = Field(description="Answers over 40 words sent within 10 seconds of the question.")
+
+
+class SkillScore(BaseModel):
+    """Hiring mode: one of the role's skills, scored from the topics that tested it (code computes the number)."""
+    skill: str
+    score: Optional[int] = Field(description="Mean confidence of the topics that tested it; None if none did.")
+    topics: list[str] = []
+
+
 class PreviousAttempt(BaseModel):
     """The viva a retake builds on, so the report can show progress."""
     session_id: str
@@ -255,6 +280,10 @@ class Report(BaseModel):
     questions_asked: int
     previous: Optional[PreviousAttempt] = None  # set on a retake
     student: Optional[StudentWork] = None  # team project
+    hiring: Optional[RoleBrief] = None     # hiring mode
+    integrity: Optional[Integrity] = None
+    skills: list[SkillScore] = []           # hiring mode
+    transcript: list[Turn] = []             # hiring mode: the full record for the recruiter to review
     generated_at: str = Field(default_factory=now_iso)
 
 
@@ -277,6 +306,11 @@ class _NarrativeStudyStep(BaseModel):
     minutes: int = Field(description="Realistic time in minutes, 10–120.")
 
 
+class _NarrativeSkill(BaseModel):
+    skill: str = Field(description="Exactly one of the role's skills given.")
+    topics: list[str] = Field(description="Topic names whose questions tested this skill; empty if none did.")
+
+
 class ReportNarrative(BaseModel):
     """What the scoring LLM writes. Numbers and quotes are filled in by code, not the model."""
 
@@ -288,3 +322,5 @@ class ReportNarrative(BaseModel):
         description="3–4 sentences for a recruiter: what the student demonstrably understands and doesn't, citing "
         "evidence (topics, test results). Neutral, factual, no hype."
     )
+    skill_evidence: list[_NarrativeSkill] = Field(
+        default=[], description="Hiring screen only: one entry per skill the role needs. Otherwise an empty list.")

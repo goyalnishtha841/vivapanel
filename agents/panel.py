@@ -24,7 +24,7 @@ from .guardrails import ANSWER_NOTES, clip_answer, classify_answer
 from .llm import LLMError
 from .moderator import ORDER, Moderator
 from .schemas import (
-    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report,
+    Assessment, Event, Examiner as Role, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report, RoleBrief,
     RunTestsResult, ToolRecord, Turn, Verification,
 )
 from . import llm
@@ -51,6 +51,7 @@ class PanelState(BaseModel):
     # retake only: the attempt it builds on, and last time's questions per topic (not to be asked again)
     previous: PreviousAttempt | None = None
     avoid_questions: dict[str, list[str]] = {}
+    role: RoleBrief | None = None  # hiring mode: the job this viva screens for
 
 
 class Panel:
@@ -108,7 +109,7 @@ class Panel:
         if self.state.plan is None:
             yield Event(speaker="moderator", message="Reading your project and planning the panel…",
                         reasoning="Moderator is assigning topics so examiners don't overlap.")
-            self.state.plan = self.moderator.plan()
+            self.state.plan = self.moderator.plan(role=self.state.role)
             self.state.queues = {r: [t for t in self.state.plan.topics if t.examiner == r] for r in self.state.examiners}
         plan = self.state.plan
         message, reasoning = self.moderator.plan_announcement(plan, retake=self.state.previous)
@@ -120,13 +121,14 @@ class Panel:
             return
         yield from self._open(first)
 
-    def answer(self, text: str) -> Iterator[Event]:
+    def answer(self, text: str, seconds: float | None = None, pasted: bool | None = None) -> Iterator[Event]:
         if not self.awaiting_answer:
             yield Event(speaker="system", message="No question is waiting for an answer.")
             return
         st = self.state
         turn = st.transcript[-1]
         turn.answer = text.strip()
+        turn.seconds, turn.pasted = seconds, pasted
         yield Event(speaker="student", message=turn.answer)
         kind = classify_answer(turn.answer)
         asker = self.examiners[turn.examiner]
@@ -136,7 +138,7 @@ class Panel:
             try:
                 q = asker.rephrase(st.transcript)
             except LLMError:
-                turn.answer = None
+                turn.answer = turn.seconds = turn.pasted = None
                 raise
             turn.verdict, turn.judgement = "not_applicable", "Student asked for clarification."
             yield self._ask(turn.examiner, "rephrase", turn.topic, q.file_ref, q.question,
@@ -151,7 +153,7 @@ class Panel:
             else:
                 d = asker.respond(st.transcript, st.follow_ups_on_topic, note=ANSWER_NOTES.get(kind))
         except LLMError:
-            turn.answer = None  # keep the question open so the student can resend the answer
+            turn.answer = turn.seconds = turn.pasted = None  # keep the question open so the student can resend
             raise
         d = _enforce(d, kind)
         if kind == "injection":

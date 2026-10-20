@@ -15,7 +15,7 @@ from pathlib import Path
 from . import llm
 from .examiner import DISPLAY, render_summary
 from .guardrails import file_ref_exists, split_ref
-from .schemas import Examiner as Role, KeyFile, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report, Turn
+from .schemas import Examiner as Role, KeyFile, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report, RoleBrief, Turn
 
 PROMPTS = Path(__file__).parent / "prompts"
 ORDER: tuple[Role, ...] = ("professor", "engineer", "junior")
@@ -61,16 +61,20 @@ class Moderator:
 
     # ---------- planning ----------
 
-    def plan(self) -> PanelPlan:
-        raw = self._offline_plan() if llm.is_offline() else self._llm_plan()
+    def plan(self, role: RoleBrief | None = None) -> PanelPlan:
+        raw = self._offline_plan() if llm.is_offline() else self._llm_plan(role)
         return self._validate(raw)
 
-    def _llm_plan(self) -> PanelPlan:
+    def _llm_plan(self, role: RoleBrief | None = None) -> PanelPlan:
         system = (PROMPTS / "moderator.md").read_text() + "\n\n## Project\n" + render_summary(self.summary)
         user = (
             f"Examiners on today's panel: {', '.join(self.examiners)}. "
             "Assign topics only to these examiners. Produce the plan."
         )
+        if role:
+            user += (f"\n\nThis viva is a technical screen for the role \"{role.title}\""
+                     + (f". The role needs: {', '.join(role.focus)}" if role.focus else "")
+                     + ". Prefer topics in this project that show those skills; still anchor every topic to real code.")
         return llm.structured_call(system, user, PanelPlan, effort="medium")
 
     def _validate(self, plan: PanelPlan) -> PanelPlan:

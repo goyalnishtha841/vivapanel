@@ -12,7 +12,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
-![Tests](https://img.shields.io/badge/tests-112%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-120%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
 [![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
@@ -80,6 +80,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | ⚔️ **Cross-examination** | After a verdict, a colleague may disagree or push the point into their own lane |
 | 🛡️ **Guardrails in code** | Empty, "I don't know", off-topic, pasted-code and prompt-injection answers are classified and capped by code, not left to the model |
 | 👥 **Team-project mode** | Pick which contributor you are; the git history shows which files you wrote, and code guarantees at least half the topics are on your own code. The report marks "your code" vs "teammate's code" |
+| 🤝 **Hiring mode** | A recruiter creates an interview link with the role and skills to probe. The candidate sees exactly what will be shared, then takes the same viva; questions are weighted to the role. The recruiter's private page has per-skill scores, flags, test evidence, how answers were given, and the full transcript, presented as one signal for a person to review |
 | 🔁 **Re-viva** | "Retake my weak topics" builds a short viva from your lowest-scoring topics (same examiner and file, new questions; code rejects last time's) and the report shows progress per topic |
 | 📄 **Evidence-backed report** | Code computes every score and copies every quote; the model writes the study plan and recruiter summary, and every reference is validated |
 | 🛟 **Never stalls on limits** | Cross-provider fallback (Groq big → Groq small → Gemini flash → flash-lite) with a 45 s timeout per call |
@@ -99,7 +100,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 112 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 120 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | ✅ The student's pytest suite runs in a throwaway Docker container or E2B microVM (no network while testing, resource and time limits). Verified on `pallets/markupsafe`. On Render it needs an `E2B_API_KEY` |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -273,13 +274,16 @@ All settings come from `.env` (see [.env.example](.env.example)).
 
 | Method | Path | What |
 |---|---|---|
-| `POST` | `/session` | Start a viva: `{"repo_url": "https://github.com/owner/name"}` → `{"session_id"}`; or retake: `{"retake_of": "<id>"}`; team project: add `"student": "<github login>"` |
+| `POST` | `/session` | Start a viva: `{"repo_url": "https://github.com/owner/name"}` → `{"session_id"}`; or retake: `{"retake_of": "<id>"}`; team project: add `"student": "<github login>"`; hiring: add `"invite": "<token>"` |
 | `GET` | `/stream/{id}` | Server-sent events, one per agent turn (speaker, message, reasoning, file, tool) |
 | `POST` | `/answer` | `{"session_id", "answer"}` |
 | `GET` | `/report/{id}` | The report (202 while it's being scored) |
 | `GET` | `/session/{id}` | Status, question limit, and the session it retakes |
 | `GET` | `/contributors?repo_url=` | Human contributors of a repo, for "which one are you?" |
 | `GET` | `/code/{id}?path=` | One repo file for the code viewer (listed paths only) |
+| `POST` | `/invites` | Hiring: `{title, company, focus[]}` → candidate link token + private results key |
+| `GET` | `/invites/{token}` | What the candidate sees before starting (role, already used?) |
+| `GET` | `/screening/{token}?key=` | The recruiter's results: status, then the screening report with transcript |
 | `GET` | `/health` | Liveness and the active model |
 
 Full contract, including the event and report shapes: [docs/api-contract.md](docs/api-contract.md).
@@ -292,7 +296,7 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                      # 112 tests
+pytest -q                      # 120 tests
 ruff check agents backend tests
 ```
 
@@ -307,6 +311,7 @@ ruff check agents backend tests
 | `test_team_mode.py` | Git-history ownership on a real throwaway repo (emails, names, GitHub noreply addresses), and that at least half the planned topics land on the student's own files even when the model plans none there |
 | `test_sandbox.py` | Reading pytest's output (pass, fail, collection error, timeout), only real test files can be targeted, a failed install never runs tests, backend choice |
 | `test_reader.py` | The reader agent's picks are validated (no invented paths or functions, no tests or non-code, no duplicates), each step is narrated once, the student's files are always kept in team mode, and a broken agent falls back to one summary call |
+| `test_hiring.py` | The full screening flow, single-use links, a wrong or missing key opens nothing, the candidate can't open the recruiter's report or retake, the role reaches the planner, skill scores are computed by code from the model's topic mapping, integrity counts |
 | `test_api.py` | A full viva over HTTP, event ordering for stream resume, 400/404/409/422/429 responses, the daily cap |
 
 We checked that the suite catches regressions: disabling the edge-case enforcement or the follow-up cap makes it fail.
@@ -363,6 +368,7 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Code viewer beside each question, following the Engineer's reads and searches live
 - [x] Test sandbox for real repos: Docker locally, E2B when hosted; network cut before tests run
 - [x] Agentic repo reader: an agent explores the repo to choose what to examine
+- [x] Hiring mode: interview links, role-weighted questions, a private screening report with per-skill scores
 
 **Next**
 
@@ -370,7 +376,6 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [ ] Persistent storage (Postgres) and a teacher view for a whole batch
 - [ ] Calibrate scores against real faculty viva marks
 - [ ] More sandboxes: Node/Jest, Java/JUnit
-- [ ] Hiring mode: a recruiter sends a link, and the report becomes evidence-backed screening
 
 ---
 

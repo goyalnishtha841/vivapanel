@@ -15,7 +15,7 @@ from pathlib import Path
 
 from agents import llm
 from agents.panel import Panel, PanelState
-from agents.schemas import Event, ProjectSummary, Report
+from agents.schemas import Event, ProjectSummary, Report, RoleBrief
 from agents.scoring import build_report
 from agents.tools import MOCK_REPO, LocalRepoTools, mock_test_runner
 
@@ -107,11 +107,11 @@ def friendly(err: Exception) -> str:
 
 # ---------- start ----------
 
-def start(sid: str, repo_url: str, student: str | None = None) -> None:
-    threading.Thread(target=_start, args=(sid, repo_url, student), daemon=True, name=f"start-{sid}").start()
+def start(sid: str, repo_url: str, student: str | None = None, role: RoleBrief | None = None) -> None:
+    threading.Thread(target=_start, args=(sid, repo_url, student, role), daemon=True, name=f"start-{sid}").start()
 
 
-def _start(sid: str, repo_url: str, student: str | None = None) -> None:
+def _start(sid: str, repo_url: str, student: str | None = None, role: RoleBrief | None = None) -> None:
     with _lock(sid):
         try:
             if _is_sample(repo_url):
@@ -130,7 +130,9 @@ def _start(sid: str, repo_url: str, student: str | None = None) -> None:
             return
 
         run_tests, repo_tools = _tools(sid, summary)
-        _begin(sid, summary, Panel(summary, run_tests=run_tests, repo_tools=repo_tools))
+        panel = Panel(summary, run_tests=run_tests, repo_tools=repo_tools)
+        panel.state.role = role
+        _begin(sid, summary, panel)
 
 
 def _begin(sid: str, summary: ProjectSummary, panel: Panel) -> None:
@@ -176,7 +178,7 @@ class Busy(Exception):
     pass
 
 
-def answer(sid: str, text: str) -> None:
+def answer(sid: str, text: str, seconds: float | None = None, pasted: bool | None = None) -> None:
     lock = _lock(sid)
     if not lock.acquire(blocking=False):
         raise Busy()
@@ -185,13 +187,14 @@ def answer(sid: str, text: str) -> None:
         lock.release()
         raise Busy()
     store.update(sid, status="thinking")
-    threading.Thread(target=_answer, args=(sid, row, text, lock), daemon=True, name=f"answer-{sid}").start()
+    threading.Thread(target=_answer, args=(sid, row, text, lock, seconds, pasted), daemon=True,
+                     name=f"answer-{sid}").start()
 
 
-def _answer(sid: str, row: dict, text: str, lock: threading.Lock) -> None:
+def _answer(sid: str, row: dict, text: str, lock: threading.Lock, seconds=None, pasted=None) -> None:
     try:
         panel = _panel(sid, row)
-        _run(sid, panel.answer(text))
+        _run(sid, panel.answer(text, seconds=seconds, pasted=pasted))
         store.update(sid, state=panel.to_json(), status="scoring" if panel.done else "awaiting")
         if panel.done:
             _score(sid, panel)

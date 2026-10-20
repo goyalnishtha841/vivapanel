@@ -6,7 +6,7 @@ import { go } from "../lib/route.js";
 const GITHUB = /^(https?:\/\/)?(www\.)?github\.com\/[\w.-]+\/[\w.-]+\/?(\.git)?$/i;
 
 /** The main call to action: paste a repo link, start a viva. */
-export default function RepoInput({ size = "lg" }) {
+export default function RepoInput({ size = "lg", invite = null, disabled = false }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -15,7 +15,7 @@ export default function RepoInput({ size = "lg" }) {
   async function begin(repo, student = null) {
     setBusy(true);
     try {
-      go(`/session/${await api.createSession(repo, student)}`);
+      go(`/session/${await api.createSession(repo, student, invite)}`);
     } catch (e) {
       setError(e.message);
       setBusy(false);
@@ -88,7 +88,7 @@ export default function RepoInput({ size = "lg" }) {
         />
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || disabled}
           className={`group/btn inline-flex shrink-0 items-center gap-2 rounded-full bg-brand font-semibold text-white transition-all hover:shadow-[0_0_32px_-4px_rgb(var(--brand)/0.7)] active:scale-[0.98] disabled:opacity-60 ${big ? "px-6 py-3 text-[15px]" : "px-5 py-2.5 text-[14px]"}`}
         >
           {busy ? "Starting…" : "Start my viva"}
@@ -98,7 +98,7 @@ export default function RepoInput({ size = "lg" }) {
       <div className="mt-3 flex min-h-[22px] items-center justify-center text-[14px]">
         {error ? (
           <span role="alert" className="text-bad">{error}</span>
-        ) : (
+        ) : invite ? null : (
           <button type="button" onClick={() => { setUrl(DEMO_REPO); start(DEMO_REPO); }} className="text-muted transition-colors hover:text-ink">
             or try it on our <span className="font-medium text-brand underline decoration-brand/40 underline-offset-4">sample project</span>
           </button>

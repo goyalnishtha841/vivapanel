@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
-// Hash routes: #/  ·  #/session/<id>  ·  #/report/<id>
+// Hash routes: #/  ·  #/session/<id>  ·  #/report/<id>  ·  #/hire  ·  #/invite/<token>  ·  #/screening/<token>/<key>
 function parse() {
-  const [, page = "", id = ""] = window.location.hash.replace(/^#/, "").split("/");
-  return { page: page || "home", id };
+  const [, page = "", id = "", extra = ""] = window.location.hash.replace(/^#/, "").split("/");
+  return { page: page || "home", id, extra };
 }
 
 export function useRoute() {

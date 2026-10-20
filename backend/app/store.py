@@ -29,6 +29,13 @@ _conn.executescript(
         created_at REAL NOT NULL,
         updated_at REAL NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS invites (    -- hiring mode: one interview link per candidate
+        token TEXT PRIMARY KEY,                -- in the candidate's link
+        key_hash TEXT NOT NULL,                -- sha256 of the recruiter's results key (the key itself isn't stored)
+        role TEXT NOT NULL,                    -- RoleBrief JSON
+        session_id TEXT,                       -- set once, when the candidate starts
+        created_at REAL NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS events (
         session_id TEXT NOT NULL,
         seq INTEGER NOT NULL,
@@ -39,11 +46,17 @@ _conn.executescript(
 )
 
 
-def create_session(sid: str, repo_url: str) -> None:
+# hiring mode: which interview link a session came from (added after the first release, hence the migration)
+if "invite" not in {r[1] for r in _conn.execute("PRAGMA table_info(sessions)")}:
+    _conn.execute("ALTER TABLE sessions ADD COLUMN invite TEXT")
+    _conn.commit()
+
+
+def create_session(sid: str, repo_url: str, invite: str | None = None) -> None:
     now = time.time()
     with _lock:
-        _conn.execute("INSERT INTO sessions (id, repo_url, status, created_at, updated_at) VALUES (?,?,?,?,?)",
-                      (sid, repo_url, "ingesting", now, now))
+        _conn.execute("INSERT INTO sessions (id, repo_url, status, created_at, updated_at, invite) VALUES (?,?,?,?,?,?)",
+                      (sid, repo_url, "ingesting", now, now, invite))
         _conn.commit()
 
 
@@ -80,3 +93,26 @@ def events_after(sid: str, seq: int) -> list[tuple[int, str]]:
     with _lock:
         rows = _conn.execute("SELECT seq, data FROM events WHERE session_id=? AND seq>? ORDER BY seq", (sid, seq)).fetchall()
     return [(r["seq"], r["data"]) for r in rows]
+
+
+# ---------- hiring invites ----------
+
+def create_invite(token: str, key_hash: str, role_json: str) -> None:
+    with _lock:
+        _conn.execute("INSERT INTO invites (token, key_hash, role, created_at) VALUES (?,?,?,?)",
+                      (token, key_hash, role_json, time.time()))
+        _conn.commit()
+
+
+def get_invite(token: str) -> dict | None:
+    with _lock:
+        row = _conn.execute("SELECT * FROM invites WHERE token=?", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def bind_invite(token: str, sid: str) -> bool:
+    """Attach the candidate's session; False if the link was already used (one viva per link)."""
+    with _lock:
+        cur = _conn.execute("UPDATE invites SET session_id=? WHERE token=? AND session_id IS NULL", (sid, token))
+        _conn.commit()
+    return cur.rowcount == 1

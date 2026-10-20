@@ -23,13 +23,27 @@ async function json(res) {
 
 const live = {
   // student: the GitHub login of the team member being examined (team projects), or null
-  async createSession(repoUrl, student = null) {
+  async createSession(repoUrl, student = null, invite = null) {
     const r = await json(await fetch(`${BASE}/session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repo_url: repoUrl, student }),
+      body: JSON.stringify({ repo_url: repoUrl, student, invite }),
     }));
     return r.session_id;
+  },
+  // hiring mode
+  async createInvite({ title, company, focus }) {
+    return json(await fetch(`${BASE}/invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, company, focus }),
+    }));
+  },
+  async invite(token) {
+    return json(await fetch(`${BASE}/invites/${token}`));
+  },
+  async screening(token, key) {
+    return json(await fetch(`${BASE}/screening/${token}?key=${encodeURIComponent(key)}`));
   },
   async contributors(repoUrl) {
     const r = await json(await fetch(`${BASE}/contributors?repo_url=${encodeURIComponent(repoUrl)}`));
@@ -75,11 +89,11 @@ const live = {
       es?.close();
     };
   },
-  async sendAnswer(id, answer) {
+  async sendAnswer(id, answer, meta = {}) {
     await json(await fetch(`${BASE}/answer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: id, answer }),
+      body: JSON.stringify({ session_id: id, answer, seconds: meta.seconds ?? null, pasted: meta.pasted ?? null }),
     }));
   },
   async getReport(id) {
@@ -104,7 +118,14 @@ function delayFor(e) {
   return 1100 + Math.min(1400, e.message.length * 8); // longer questions take longer to "think"
 }
 
+const needsBackend = async () => {
+  throw new Error("Hiring mode needs the live backend (this build is the offline demo).");
+};
+
 const demo = {
+  createInvite: needsBackend,
+  invite: needsBackend,
+  screening: needsBackend,
   async code(id, path) {
     if (!(path in demoCode)) throw new Error("That file isn't in the sample project.");
     return { path, content: demoCode[path], partial: false };

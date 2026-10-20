@@ -19,7 +19,8 @@ from .examiner import DISPLAY, render_summary
 from .guardrails import clip_answer, file_ref_exists, split_ref
 from .panel import PanelState
 from .schemas import (
-    ProjectSummary, Quote, Report, ReportNarrative, StudyStep, TopicScore, Turn, UnansweredQuestion, Verdict, WeakSpot,
+    Integrity, ProjectSummary, SkillScore, Quote, Report, ReportNarrative, StudyStep, TopicScore, Turn, UnansweredQuestion, Verdict,
+    WeakSpot,
 )
 
 PROMPTS = Path(__file__).parent / "prompts"
@@ -73,6 +74,10 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
         questions_asked=len(transcript),
         previous=state.previous,
         student=summary.student,
+        hiring=state.role,
+        integrity=_integrity(transcript),
+        skills=_skill_scores(state.role, narrative, topics),
+        transcript=transcript if state.role else [],
     )
 
 
@@ -107,6 +112,34 @@ def _topic_scores(state: PanelState) -> list[TopicScore]:
             evidence=[q for i, t in turns if t.answer for q in _quotes_for_turn(state.transcript, i)][:3],
         ))
     return scores
+
+
+def _skill_scores(role, narrative: ReportNarrative, topics: list[TopicScore]) -> list[SkillScore]:
+    """The model only says which topics tested which skill; the score is the mean of those topics' confidence."""
+    if not role:
+        return []
+    conf = {t.topic: t.confidence for t in topics}
+    mapped = {s.skill.strip().lower(): s.topics for s in narrative.skill_evidence}
+    out = []
+    for skill in role.focus:
+        names = [n for n in mapped.get(skill.strip().lower(), []) if conf.get(n) is not None]
+        scores = [conf[n] for n in names]
+        out.append(SkillScore(skill=skill, score=round(sum(scores) / len(scores)) if scores else None, topics=names))
+    return out
+
+
+def _integrity(transcript: list[Turn]) -> Integrity | None:
+    """Only from what the browser reported; None when nothing was reported (CLI, evals, older sessions)."""
+    timed = [t for t in transcript if t.answer and t.seconds is not None]
+    if not timed:
+        return None
+    secs = sorted(t.seconds for t in timed)
+    mid = len(secs) // 2
+    return Integrity(
+        answers=len(timed), pasted=sum(bool(t.pasted) for t in timed),
+        median_seconds=round(secs[mid] if len(secs) % 2 else (secs[mid - 1] + secs[mid]) / 2, 1),
+        fast_long_answers=sum(1 for t in timed if t.seconds < 10 and len(t.answer.split()) > 40),
+    )
 
 
 def _readiness(score: int, topics_covered: int) -> str:
@@ -167,6 +200,14 @@ def _render_for_scorer(state: PanelState, topics: list[TopicScore]) -> str:
     for t in topics:
         lines.append(f"- {t.topic} ({DISPLAY[t.examiner]}): "
                      + (f"{t.confidence}/100, verdicts {t.verdicts}" if t.confidence is not None else "not reached"))
+    if state.role:
+        r = state.role
+        lines.append(f"\n## Hiring screen\nThis viva screens a candidate for \"{r.title}\""
+                     + (f" at {r.company}" if r.company else "") + (f"; the role needs {', '.join(r.focus)}" if r.focus else "")
+                     + ". In recruiter_summary, say which of those skills the evidence shows and which it doesn't, citing "
+                     "topics and test results. Judge only the code and answers: nothing about the person beyond that, "
+                     "and not grammar, accent or fluency."
+                     + (f" Fill skill_evidence with one entry for each of: {r.focus}." if r.focus else ""))
     if state.previous:
         lines.append("\n## This was a retake")
         lines.append("Same topics, new questions. Scores on these topics in the previous attempt: "
@@ -183,8 +224,26 @@ def _llm_narrative(summary: ProjectSummary, state: PanelState, topics: list[Topi
     return llm.structured_call(system, user, ReportNarrative, effort="medium")
 
 
+# Offline only (no model): rough skill -> code words, so the demo can show per-skill scores.
+SKILL_WORDS = {
+    "database": {"db", "sql", "sqlite", "database", "query", "connection", "models", "orm"},
+    "security": {"auth", "password", "token", "hash", "jwt", "secret", "injection", "login"},
+    "test": {"test", "tests", "pytest", "fines"},
+    "api": {"api", "route", "routes", "endpoint", "books", "loans", "rest"},
+    "concurren": {"borrow", "lock", "thread", "async", "race"},
+}
+
+
+def _offline_skill_match(skill: str, topic: TopicScore) -> bool:
+    words = set((topic.topic + " " + (topic.file_ref or "")).lower().replace("/", " ").replace("_", " ")
+                .replace(".", " ").replace(":", " ").split())
+    s = skill.lower()
+    related = set(s.split()) | set().union(*(v for k, v in SKILL_WORDS.items() if k in s))
+    return bool(words & related)
+
+
 def _offline_narrative(summary: ProjectSummary, state: PanelState, topics: list[TopicScore]) -> ReportNarrative:
-    from .schemas import _NarrativeStudyStep, _NarrativeTopicNote, _NarrativeWeakSpot
+    from .schemas import _NarrativeSkill, _NarrativeStudyStep, _NarrativeTopicNote, _NarrativeWeakSpot
 
     reached = sorted((t for t in topics if t.confidence is not None), key=lambda t: t.confidence)
     weak = [t for t in reached if t.confidence < 60][:4]
@@ -201,6 +260,8 @@ def _offline_narrative(summary: ProjectSummary, state: PanelState, topics: list[
                     "line by line, then answer the panel's questions on it again.", file_ref=t.file_ref or "",
                     minutes=30) for t in weak] or [_NarrativeStudyStep(title="Rehearse", action="Run another viva.",
                                                                          file_ref="", minutes=20)],
+        skill_evidence=[_NarrativeSkill(skill=s, topics=[t.topic for t in topics if _offline_skill_match(s, t)])
+                        for s in (state.role.focus if state.role else [])],
         recruiter_summary=f"Answered {sum(1 for t in state.transcript if t.answer)} questions; "
                           f"{sum(1 for t in reached if t.confidence >= 60)} of {len(reached)} topics at 60+ confidence. "
                           f"{len(state.verifications)} claim(s) checked against the test suite.",

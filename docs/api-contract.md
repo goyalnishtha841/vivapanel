@@ -27,6 +27,12 @@ login as `"student"` in `POST /session` for team-project mode; the summary and r
 `GET /code/{id}?path=…` → `{path, content, partial}`: a file from the session's repo for the code viewer. Only paths in
 the summary's file list; after the viva the clone is gone and key files fall back to their excerpt (`partial: true`).
 
+Hiring mode: `POST /invites {title, company, focus[]}` → `{token, key}`. `GET /invites/{token}` → `{title, company,
+focus, used, session_id}`. `POST /session` with `"invite": token` starts the screening (409 `invite_used` after the
+first). `GET /screening/{token}?key=…` → `{role, status, repo_url, report}`; the report adds `hiring`, `skills: [{skill,
+score, topics}]`, `integrity: {answers, pasted, median_seconds, fast_long_answers}` and `transcript`. `GET /report/{id}`
+returns 403 `shared_with_recruiter` for screening sessions. `POST /answer` accepts optional `seconds` and `pasted`.
+
 `GET /session/{id}` also returns `max_questions` (12, fewer on a retake) and `retake_of`. A retake's report has
 `previous: {session_id, overall_score, topics: {title: confidence}}` so the UI can show progress.
 

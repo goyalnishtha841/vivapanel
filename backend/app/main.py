@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
+import secrets
 import time
 import uuid
 
@@ -16,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agents import llm
-from agents.schemas import ProjectSummary
+from agents.schemas import ProjectSummary, RoleBrief
 from agents.tools import LocalRepoTools
 
 from . import config, runner, store
@@ -38,11 +41,30 @@ class NewSession(BaseModel):
     repo_url: str = Field(default="", max_length=300)
     student: str | None = Field(default=None, max_length=39)  # team project: the student's GitHub login
     retake_of: str | None = Field(default=None, max_length=40)  # a finished session: retake its weakest topics
+    invite: str | None = Field(default=None, max_length=40)     # hiring mode: the candidate's interview link token
 
 
 class Answer(BaseModel):
     session_id: str
     answer: str = Field(max_length=8000)
+    seconds: float | None = Field(default=None, ge=0, le=7200)  # question shown -> answer sent (browser)
+    pasted: bool | None = None
+
+
+class NewInvite(BaseModel):
+    title: str = Field(min_length=2, max_length=80)
+    company: str = Field(default="", max_length=80)
+    focus: list[str] = Field(default=[], max_length=8)
+
+
+def _hash(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def _role_of(row: dict) -> RoleBrief | None:
+    """The job a session screens for (hiring mode), known from the moment the session is created."""
+    inv = store.get_invite(row["invite"]) if row.get("invite") else None
+    return RoleBrief.model_validate_json(inv["role"]) if inv else None
 
 
 @app.get("/health")
@@ -62,13 +84,60 @@ def list_contributors(repo_url: str):
     return {"contributors": authorship.contributors(owner, name)}
 
 
+@app.post("/invites")
+def create_invite(body: NewInvite):
+    """Hiring mode: an interview link for one candidate, plus a private key for the recruiter's results page."""
+    focus = [f.strip()[:40] for f in body.focus if f.strip()]
+    role = RoleBrief(title=body.title.strip(), company=body.company.strip(), focus=focus)
+    token, key = secrets.token_urlsafe(9), secrets.token_urlsafe(18)
+    store.create_invite(token, _hash(key), role.model_dump_json())
+    return {"token": token, "key": key}
+
+
+@app.get("/invites/{token}")
+def invite_info(token: str):
+    """What the candidate sees before starting: the role, and whether the link was already used."""
+    inv = store.get_invite(token)
+    if not inv:
+        return error(404, "invite_not_found", "This interview link isn't valid.")
+    role = RoleBrief.model_validate_json(inv["role"])
+    return {"title": role.title, "company": role.company, "focus": role.focus, "used": bool(inv["session_id"]),
+            "session_id": inv["session_id"]}
+
+
+@app.get("/screening/{token}")
+def screening(token: str, key: str = ""):
+    """The recruiter's results page: status while the viva runs, then the screening report (with transcript)."""
+    inv = store.get_invite(token)
+    if not inv or not hmac.compare_digest(_hash(key), inv["key_hash"]):
+        return error(404, "invite_not_found", "No screening at this link.")
+    role = json.loads(inv["role"])
+    row = store.get_session(inv["session_id"]) if inv["session_id"] else None
+    out = {"role": role, "token": token, "status": row["status"] if row else "not_started",
+           "repo_url": row["repo_url"] if row else None, "report": None}
+    if row and row["report"]:
+        out["report"] = json.loads(row["report"])
+    elif row and row["status"] == "error" and (row["error"] or "").startswith("llm_failed") and row["state"]:
+        runner.retry_report(inv["session_id"])
+        store.update(inv["session_id"], status="scoring", error=None)
+        out["status"] = "scoring"
+    return out
+
+
 @app.post("/session")
 def create_session(body: NewSession):
     prev = None
+    invite = store.get_invite(body.invite) if body.invite else None
+    if body.invite and not invite:
+        return error(404, "invite_not_found", "This interview link isn't valid.")
+    if invite and invite["session_id"]:
+        return error(409, "invite_used", "This interview link has already been used.")
     if body.retake_of:
         prev = store.get_session(body.retake_of)
         if not prev:
             return error(404, "session_not_found", "No session with that id.")
+        if _role_of(prev):
+            return error(409, "retake_not_allowed", "Screening vivas can't be retaken.")
         if not runner.can_retake(prev):
             return error(409, "nothing_to_retake", "Finish the viva first: a retake needs at least one assessed topic.")
     url = prev["repo_url"] if prev else body.repo_url.strip()
@@ -82,11 +151,14 @@ def create_session(body: NewSession):
     if config.DAILY_SESSION_LIMIT and store.sessions_since(time.time() - 86400) >= config.DAILY_SESSION_LIMIT:
         return error(429, "daily_limit", "Today's vivas are used up on this demo. Please try again tomorrow.")
     sid = uuid.uuid4().hex[:12]
-    store.create_session(sid, url)
+    store.create_session(sid, url, invite=body.invite if invite else None)
+    if invite and not store.bind_invite(body.invite, sid):
+        return error(409, "invite_used", "This interview link has already been used.")
     if prev:
         runner.start_retake(sid, body.retake_of)
     else:
-        runner.start(sid, url, student=body.student)
+        runner.start(sid, url, student=body.student,
+                     role=RoleBrief.model_validate_json(invite["role"]) if invite else None)
     return {"session_id": sid}
 
 
@@ -96,8 +168,10 @@ def session_status(sid: str):
     if not row:
         return error(404, "session_not_found", "No session with that id.")
     state = json.loads(row["state"]) if row["state"] else {}
+    role = _role_of(row)
     return {"session_id": sid, "repo_url": row["repo_url"], "status": row["status"], "error": row["error"],
-            "max_questions": state.get("max_questions", 12), "retake_of": (state.get("previous") or {}).get("session_id")}
+            "max_questions": state.get("max_questions", 12), "retake_of": (state.get("previous") or {}).get("session_id"),
+            "hiring": {"title": role.title, "company": role.company} if role else None}
 
 
 @app.post("/answer")
@@ -108,7 +182,7 @@ def answer(body: Answer):
     if row["status"] == "error":
         return error(409, "session_failed", "This session hit an error. Start a new one.")
     try:
-        runner.answer(body.session_id, body.answer)
+        runner.answer(body.session_id, body.answer, seconds=body.seconds, pasted=body.pasted)
     except runner.Busy:
         return error(409, "panel_busy", "The panel is still working on the last turn.")
     return {"ok": True}
@@ -165,6 +239,8 @@ def report(sid: str):
     row = store.get_session(sid)
     if not row:
         return error(404, "session_not_found", "No session with that id.")
+    if _role_of(row):  # hiring: the report belongs to the recruiter's private results link
+        return error(403, "shared_with_recruiter", "This screening report is shared with the recruiter only.")
     if row["report"]:
         return JSONResponse(json.loads(row["report"]))
     if row["status"] == "error" and (row["error"] or "").startswith("llm_failed") and row["state"]:

@@ -74,6 +74,7 @@ export default function Nav({ theme, onToggleTheme }) {
               </a>
             ))}
           </nav>
+          <a href="#/hire" className="mr-1 hidden px-3 py-2 text-[15px] font-medium text-muted transition-colors hover:text-ink md:inline">For recruiters</a>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           <a href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); setTimeout(() => document.querySelector("#repo-input")?.focus(), 500); }}
             className="hidden rounded-full bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-shadow hover:shadow-[0_0_28px_-4px_rgb(var(--brand)/0.7)] sm:inline">
@@ -95,6 +96,7 @@ export default function Nav({ theme, onToggleTheme }) {
               {l.label}
             </a>
           ))}
+          <a href="#/hire" className="block rounded-[14px] px-4 py-3 text-[16px] font-medium text-ink hover:bg-ink/[0.06]">For recruiters</a>
         </motion.nav>
       )}
     </header>

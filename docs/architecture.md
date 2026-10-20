@@ -125,6 +125,17 @@ every examiner which files are theirs, and `Moderator._own_work_first` guarantee
 them, whatever the model planned. The report marks each topic "your code" or "teammate's code". The `.git` folder
 is deleted right after.
 
+## 5d. Hiring mode
+
+Same panel, different reader. `POST /invites` stores a role brief (title, company, skills) and returns a candidate
+token plus a results key (stored only as a SHA-256 hash). A session started from the invite carries the role: the
+moderator is told to prefer topics that show those skills, and the scorer writes the recruiter summary against them
+and maps each skill to the topics that tested it. Code computes each skill's score as the mean of those topics'
+confidence, dropping topics that don't exist. The browser reports per-answer timing and pastes, summarised as
+"how answers were given". The report adds the full transcript and is served only via `GET /screening/{token}?key=`;
+`GET /report/{id}` refuses screening sessions, and they can't be retaken. Every page says it's one signal for a
+person to review, and the shared rules forbid grading grammar, accent or fluency.
+
 ## 6. Scoring
 
 ```

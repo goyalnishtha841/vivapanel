@@ -238,6 +238,8 @@ function Body({ r, id }) {
   );
 }
 
+export { Card, Chip, Evidence, ScoreRing };
+
 function Chip({ children }) {
   return <span className="rounded-full border border-line bg-bg/50 px-3 py-1">{children}</span>;
 }
@@ -271,7 +273,7 @@ function ScoreRing({ value, color }) {
   );
 }
 
-function Evidence({ quotes }) {
+function Evidence({ quotes, me = "You" }) {
   return (
     <div className="mt-4 space-y-2 border-l-2 border-line pl-4">
       {quotes.map((q, i) => {
@@ -279,7 +281,7 @@ function Evidence({ quotes }) {
         return (
           <p key={i} className="text-[14px] leading-relaxed">
             <span className={`mr-1.5 text-[12px] font-semibold ${ex ? TONE[ex.tone].text : "text-brand"}`}>
-              Q{q.turn} {ex ? ex.short : "You"}:
+              Q{q.turn} {ex ? ex.short : me}:
             </span>
             <span className={ex ? "text-muted" : ""}>
               {ex ? <CodeText text={cleanQuestion(q.text)} /> : `“${q.text}”`}

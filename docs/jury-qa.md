@@ -115,8 +115,23 @@ gets *easier*, not harder, so a stuck student can still show what they know.
 | "Can a student game it?" | Pasting in a rehearsed or AI-written answer is the main risk. Follow-ups on specific lines and the Junior's "explain simply" make that hard, but not impossible. |
 | "Free-tier limits?" | Real: about 5 sessions a day on Groq's free tier (we cut tokens per session by 35%), plus a Gemini backup. We built a fallback, and the code runs on a paid tier unchanged. |
 
+## Hiring mode (if asked)
+
+**Q: Who else would use this?** Recruiters and placement cells. A recruiter creates an interview link with the role
+and the skills to probe ("backend, REST APIs, testing"). The candidate takes the same viva; the moderator weights
+topics to those skills. The recruiter gets a private page: understanding score, a score per skill (the model only
+says which topics tested which skill; code computes the number), flags with quotes and file references, test results
+that confirm or contradict the candidate's claims, how answers were given, and the full transcript.
+
+**Q: Isn't AI screening unfair?** We present it as one signal for a person to review, never a decision, and say so on
+every page. Candidates see exactly what's shared before they start and must agree. The panel grades correctness and
+understanding of their own code, never grammar, accent or fluency, and typing is the main way to answer. "How answers
+were given" (pasted text, response time) is labelled as context, not a verdict.
+
+**Q: Privacy?** The results link has a random key that we store only as a hash. The candidate's own session link can't
+open the recruiter's report, and a link works for one viva only.
+
 ## Future work (if asked)
 
-- **Hiring mode:** a recruiter sends a link; the candidate's report becomes evidence-backed screening.
 - **Calibration:** compare panel scores with real faculty viva marks.
 - **More sandboxes:** Node/Jest, Java/JUnit.
