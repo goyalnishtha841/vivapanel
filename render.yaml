@@ -14,5 +14,7 @@ services:
         sync: false
       - key: GITHUB_TOKEN
         sync: false
+      - key: E2B_API_KEY       # test sandbox for real repos (Render can't run Docker)
+        sync: false
       - key: VIVA_DAILY_SESSIONS
         value: "40"

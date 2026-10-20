@@ -19,7 +19,7 @@ from agents.schemas import Event, ProjectSummary, Report
 from agents.scoring import build_report
 from agents.tools import MOCK_REPO, LocalRepoTools, mock_test_runner
 
-from . import config, store
+from . import config, sandbox, store
 from .ingest import IngestError, clone, ingest, parse_repo_url
 
 # The landing page's "sample project" link. It isn't a real GitHub repo: it's the bundled mock project.
@@ -46,12 +46,35 @@ def code_root(sid: str, summary: ProjectSummary) -> Path:
     return MOCK_REPO if _is_sample(summary.repo_url) else config.REPOS_DIR / sid
 
 
+_sandboxes: dict[str, sandbox.Sandbox] = {}
+
+
+def _sandbox(sid: str, summary: ProjectSummary) -> sandbox.Sandbox | None:
+    """The session's test sandbox, created on first use and prepared in the background (installing takes a while)."""
+    if sid not in _sandboxes:
+        box = sandbox.make(config.REPOS_DIR / sid, summary.files, summary.test_command)
+        if box is None:
+            return None
+        _sandboxes[sid] = box
+        box.start()
+    return _sandboxes[sid]
+
+
+def _close_sandbox(sid: str) -> None:
+    box = _sandboxes.pop(sid, None)
+    if box:
+        threading.Thread(target=box.close, daemon=True).start()
+
+
 def _tools(sid: str, summary: ProjectSummary):
-    """(run_tests, repo_tools) for a session. Real repos get no sandbox until it exists (roadmap step 3)."""
+    """(run_tests, repo_tools) for a session: the sample project uses recorded results; real repos a sandbox."""
     if _is_sample(summary.repo_url):
         return mock_test_runner(), LocalRepoTools(MOCK_REPO)
     clone = config.REPOS_DIR / sid
-    return None, (LocalRepoTools(clone) if clone.exists() else None)
+    if not clone.exists():
+        return None, None
+    box = _sandbox(sid, summary)
+    return (box.run if box else None), LocalRepoTools(clone)
 
 
 def _panel(sid: str, row: dict) -> Panel:
@@ -187,6 +210,7 @@ def _score(sid: str, panel: Panel) -> None:
     except llm.LLMError as e:
         store.update(sid, status="error", error=f"llm_failed: {e}")
     finally:
+        _close_sandbox(sid)
         shutil.rmtree(config.REPOS_DIR / sid, ignore_errors=True)  # the clone isn't needed after the viva
 
 

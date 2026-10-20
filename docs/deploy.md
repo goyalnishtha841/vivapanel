@@ -30,10 +30,17 @@ docker run -p 8000:8000 --env-file .env viva-panel     # open http://localhost:8
 |---|---|---|
 | `VIVA_DAILY_SESSIONS` | 40 | New sessions allowed per rolling 24 h, so a public link can't burn the shared free-tier quota (0 = no cap) |
 | `VIVA_PROVIDER` | groq (in render.yaml) | Primary LLM provider; Gemini is the automatic backup when `GEMINI_API_KEY` is set |
+| `E2B_API_KEY` | — | Hosted test sandbox for real repos (needed on Render) |
+| `VIVA_SANDBOX` | auto | `auto` · `docker` · `e2b` · `off` |
 | `PORT` | 8000 | Set by the host |
 
 ## Safety
 
-The deployed app clones and reads student repos but **never executes their code**: real repos get no test runner
-until the Docker sandbox (no network, read-only, memory/CPU/time limits) is ready. Only the built-in sample project
-runs its recorded test results.
+Student code never runs on the server. When the Engineer checks a claim, the repo's own pytest suite runs in a
+throwaway sandbox (`backend/app/sandbox.py`): a copy of the repo, memory/CPU/process limits, internet only while
+installing dependencies and cut before any test runs, a 60 s limit per run, none of our keys inside, removed after
+the viva.
+
+- **On Render:** set `E2B_API_KEY` (e2b.dev, free tier) and the sandbox is a hosted microVM. Without it, real repos
+  are read and searched but not test-run; the sample project still shows test verification.
+- **On a VM or locally:** Docker is used automatically if it's running (`VIVA_SANDBOX=docker` to force it).

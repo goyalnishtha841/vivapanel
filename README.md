@@ -12,7 +12,7 @@ the way a real viva panel would, then writes an evidence-backed report and study
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-one%20container-2496ED?logo=docker&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%7C%20Gemini%20backup%20%7C%20Claude-8A63D2)
-![Tests](https://img.shields.io/badge/tests-97%20passing-2EA043)
+![Tests](https://img.shields.io/badge/tests-107%20passing-2EA043)
 ![Edge cases](https://img.shields.io/badge/edge--case%20eval-7%2F7%20live-2EA043)
 [![CI](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml/badge.svg)](https://github.com/goyalnishtha841/vivapanel/actions/workflows/ci.yml)
 
@@ -98,8 +98,8 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (moderator, 3 examiners, scoring) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 97 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
-| Test sandbox for real repos | 🚧 Docker sandbox in progress; until then real repos are read but **never executed** (the sample project uses recorded test results) |
+| Tests and CI | ✅ 107 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Test sandbox for real repos | ✅ The student's pytest suite runs in a throwaway Docker container or E2B microVM (no network while testing, resource and time limits). Verified on `pallets/markupsafe`. On Render it needs an `E2B_API_KEY` |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
 ---
@@ -260,6 +260,8 @@ All settings come from `.env` (see [.env.example](.env.example)).
 | `GEMINI_API_KEY` | — | Turns on the Gemini backup automatically |
 | `ANTHROPIC_API_KEY` | — | For Claude |
 | `GITHUB_TOKEN` | — | Optional; raises GitHub's repo-check limit from 60 to 5,000 an hour |
+| `E2B_API_KEY` | — | Hosted test sandbox for real repos (Render can't run Docker) |
+| `VIVA_SANDBOX` | `auto` | `auto` (E2B if keyed, else Docker if running), `docker`, `e2b` or `off` |
 | `VIVA_DAILY_SESSIONS` | `40` | New vivas allowed per rolling 24 h on a public deploy (0 = no cap) |
 | `VIVA_OFFLINE` | `0` | `1` runs scripted agents with no model calls |
 | `VIVA_DEBUG` | `0` | `1` prints latency and tokens for every model call |
@@ -289,7 +291,7 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                      # 97 tests
+pytest -q                      # 107 tests
 ruff check agents backend tests
 ```
 
@@ -302,6 +304,7 @@ ruff check agents backend tests
 | `test_repo_tools.py` | The Engineer's tools can't read outside the repo (`../`, absolute paths, symlinks); GitHub link parsing rejects anything else |
 | `test_retake.py` | Retakes target the weakest topics with the same examiner and file, stay short, show progress, and reject last time's questions |
 | `test_team_mode.py` | Git-history ownership on a real throwaway repo (emails, names, GitHub noreply addresses), and that at least half the planned topics land on the student's own files even when the model plans none there |
+| `test_sandbox.py` | Reading pytest's output (pass, fail, collection error, timeout), only real test files can be targeted, a failed install never runs tests, backend choice |
 | `test_api.py` | A full viva over HTTP, event ordering for stream resume, 400/404/409/422/429 responses, the daily cap |
 
 We checked that the suite catches regressions: disabling the edge-case enforcement or the follow-up cap makes it fail.
@@ -324,8 +327,8 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 
 ## Limitations
 
-- **The test sandbox isn't live for real repos yet.** The deployed app reads student code but
-  never runs it; only the sample project shows test verification today.
+- **Test runs need a sandbox backend.** Locally Docker is used automatically; on Render the hosted
+  sandbox needs an `E2B_API_KEY`. Without one, real repos are read and searched but not test-run.
 - **Free-tier limits.** About 5 full sessions a day on Groq's free tier, plus the Gemini backup.
   The deploy caps new vivas per day so a public link can't drain them.
 - **Scoring isn't calibrated against human examiners yet.** The weights are a reasoned first
@@ -356,10 +359,10 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Re-viva: retake the weakest topics with new questions and see progress per topic
 - [x] Team-project mode: examine each member on the files they actually wrote (from git history)
 - [x] Code viewer beside each question, following the Engineer's reads and searches live
+- [x] Test sandbox for real repos: Docker locally, E2B when hosted; network cut before tests run
 
 **Next**
 
-- [ ] Docker test sandbox for real repos (no network, read-only, CPU, memory and time limits)
 - [ ] Results from 5 real student repos
 - [ ] Persistent storage (Postgres) and a teacher view for a whole batch
 - [ ] Calibrate scores against real faculty viva marks
