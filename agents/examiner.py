@@ -164,8 +164,9 @@ class Examiner:
                 f"- Topic: {topic.title}\n- Anchor: {topic.file_ref}\n- Why it matters: {topic.why}\n\n"
                 "Ask your opening question on it, about the anchor file above — other files belong to other topics. "
                 "If the student already said something relevant earlier, build on it rather than repeating it."
-                + ("\n\nThis is a RETAKE: the student struggled with this topic last time. Ask a new question from a "
-                   "different angle on the same code, not one of these from last time:\n"
+                + ("\n\nThis is a RETAKE: the student struggled with this topic last time (see \"Why it matters\"). "
+                   "Re-test that same weakness, the exact concept they got wrong, with a freshly worded question; don't "
+                   "drift to a different issue in the file. Not one of these from last time:\n"
                    + "\n".join(f"- {q}" for q in avoid) if avoid else "")
             )
             d = self._grounded(user, QuestionDecision, lambda d: d.file_ref, default_ref=topic.file_ref,
