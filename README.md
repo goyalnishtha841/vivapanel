@@ -40,6 +40,8 @@ Each run is logged to `runs/*.jsonl` in the shared Event format. `VIVA_DEBUG=1` 
 
 **Gemini backup:** add `GEMINI_API_KEY` (Google AI Studio) to `.env` and any call that hits a Groq limit moves to Gemini (flash, then flash-lite) instead of failing. A model that hits its daily cap is skipped for the rest of the day. Tested live: the edge-case eval passed 7/7 with the session switching from Groq to Gemini halfway through.
 
+**Deploy:** one Docker container serves the app and the API at one URL; Render blueprint included. See [docs/deploy.md](docs/deploy.md).
+
 ## Evals
 
 ```bash

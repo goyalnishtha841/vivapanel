@@ -1,0 +1,18 @@
+# Render blueprint: New > Blueprint > pick this repo. Secrets are asked for on first deploy.
+services:
+  - type: web
+    name: viva-panel
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: VIVA_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: VIVA_DAILY_SESSIONS
+        value: "40"

@@ -2,14 +2,16 @@
  * Talks to the backend (docs/api-contract.md). Two adapters, same interface:
  *
  *   live  — VITE_API_URL is set: POST /session, SSE GET /stream/{id}, POST /answer, GET /report/{id}
+ *           ("/" = same origin, for the deployed build the API serves itself)
  *   demo  — no backend yet: replays a real recorded Groq session (src/mock/session.json),
  *           pausing at each question until the user answers.
  */
 import recorded from "../mock/session.json";
 import recordedReport from "../mock/report.json";
 
-const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-export const MODE = BASE ? "live" : "demo";
+const API_URL = import.meta.env.VITE_API_URL || "";
+const BASE = API_URL.replace(/\/+$/, "");
+export const MODE = API_URL ? "live" : "demo";
 export const DEMO_REPO = "https://github.com/example-student/campus-library-api";
 
 async function json(res) {

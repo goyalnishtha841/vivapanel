@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 
 from fastapi import FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agents import llm
@@ -51,6 +53,8 @@ def create_session(body: NewSession):
             parse_repo_url(url)
         except IngestError as e:
             return error(400, e.code, e.detail)
+    if config.DAILY_SESSION_LIMIT and store.sessions_since(time.time() - 86400) >= config.DAILY_SESSION_LIMIT:
+        return error(429, "daily_limit", "Today's vivas are used up on this demo. Please try again tomorrow.")
     sid = uuid.uuid4().hex[:12]
     store.create_session(sid, url)
     runner.start(sid, url)
@@ -119,3 +123,8 @@ def report(sid: str):
     if row["status"] in ("scoring",):
         return JSONResponse(status_code=202, content={"status": "scoring"})
     return error(409, "viva_not_finished", "The viva isn't finished yet.")
+
+
+# Last, so the API routes above win: everything else is the built frontend (hash-routed, so / is enough).
+if (config.STATIC_DIR / "index.html").exists():
+    app.mount("/", StaticFiles(directory=config.STATIC_DIR, html=True), name="app")

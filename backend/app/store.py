@@ -47,6 +47,11 @@ def create_session(sid: str, repo_url: str) -> None:
         _conn.commit()
 
 
+def sessions_since(ts: float) -> int:
+    with _lock:
+        return _conn.execute("SELECT COUNT(*) FROM sessions WHERE created_at >= ?", (ts,)).fetchone()[0]
+
+
 def get_session(sid: str) -> dict | None:
     with _lock:
         row = _conn.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
