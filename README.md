@@ -16,6 +16,7 @@ report with a study plan.
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Postgres](https://img.shields.io/badge/Postgres-Neon-4169E1?logo=postgresql&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%C2%B7%20Gemini%20backup%20%C2%B7%20Claude-8A63D2)
+[![License: MIT](https://img.shields.io/badge/license-MIT-E07A3F.svg)](LICENSE)
 
 ### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com)
 
@@ -499,4 +500,4 @@ Built for the **Ziro Agentic AI Hackathon 2026** by **Triple Threat AI**.
 | **Asmita Roy** ([@techAsmita](https://github.com/techAsmita)) | UI redesign and polish, voice and hands-free mode, mobile layout, testing on real repos, sandbox checks, demo video and slides |
 | **Akshita** | Hosted test sandbox, deployment |
 
-**License:** not yet chosen. © 2026 Team Triple Threat AI (Nishtha Goyal, Asmita Roy, Akshita). All rights reserved until a licence is added.
+**License:** [MIT](LICENSE) © 2026 Team Triple Threat AI (Nishtha Goyal, Asmita Roy, Akshita).
