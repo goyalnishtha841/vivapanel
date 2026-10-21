@@ -36,8 +36,13 @@ IMAGE = os.getenv("VIVA_SANDBOX_IMAGE", "python:3.12-slim")
 SKIP = {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".tox", ".mypy_cache"}
 MAX_UPLOAD_BYTES = 40_000_000
 
+# Some images (E2B's default one included) ship python3 without the venv module ("ensurepip is not available"),
+# so fall back to virtualenv from PyPI before giving up.
 INSTALL = (
-    "set -e; python3 -m venv {venv} && . {venv}/bin/activate && cd {work} && "
+    "set -e; "
+    "(python3 -m venv {venv} 2>/dev/null || "
+    " (python3 -m pip install -q --user --disable-pip-version-check virtualenv && python3 -m virtualenv -q {venv})) && "
+    ". {venv}/bin/activate && cd {work} && "
     "pip install -q --disable-pip-version-check pytest && "
     "if [ -f requirements.txt ]; then pip install -q -r requirements.txt; fi && "
     "if [ -f requirements-dev.txt ]; then pip install -q -r requirements-dev.txt || true; fi && "
@@ -103,7 +108,9 @@ class Sandbox:
             self._exec(INSTALL.format(venv=self.venv, work=self.work), INSTALL_TIMEOUT_S + 30)
             self._offline()
         except Exception as e:  # noqa: BLE001 - any failure just means tests can't run this session
+            global LAST_ERROR
             self.error = f"{type(e).__name__}: {str(e)[:300]}"
+            LAST_ERROR = f"{type(self).__name__}: {self.error}"
             print(f"sandbox prepare failed: {self.error}", flush=True)
         finally:
             self._ready.set()
@@ -249,6 +256,27 @@ def backend() -> str | None:
                 _docker_ok = False
         return "docker" if _docker_ok else None
     return None
+
+
+def status() -> dict:
+    """What the sandbox would use right now, for /health: lets you check a deploy without reading logs."""
+    kind = backend()
+    info: dict = {"backend": kind or "off", "image": IMAGE if kind == "docker" else None}
+    if os.getenv("VIVA_SANDBOX", "auto").lower() == "e2b" and not os.getenv("E2B_API_KEY"):
+        info["problem"] = "VIVA_SANDBOX=e2b but E2B_API_KEY is not set"
+    elif kind is None:
+        info["problem"] = "no sandbox: set E2B_API_KEY (hosts without Docker, e.g. Render) or run Docker"
+    elif kind == "e2b":
+        try:
+            import e2b  # noqa: F401
+        except ImportError:
+            info["problem"] = "E2B_API_KEY is set but the e2b package is not installed (pip install e2b)"
+    if LAST_ERROR:
+        info["last_error"] = LAST_ERROR
+    return info
+
+
+LAST_ERROR: str | None = None  # the most recent prepare failure, shown on /health
 
 
 def make(root: Path, files: list[str], test_command: str | None) -> Sandbox | None:

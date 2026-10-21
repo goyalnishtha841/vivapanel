@@ -43,7 +43,7 @@ export default function RepoInput({ size = "lg", invite = null, disabled = false
 
   if (team) {
     return (
-      <div className="w-full rounded-[24px] border border-line bg-surface/90 p-5 text-left backdrop-blur sm:p-6">
+      <div className="w-full rounded-[24px] neon neon-quiet p-5 text-left backdrop-blur sm:p-6">
         <p className="text-[17px] font-semibold">Team project. Which one are you?</p>
         <p className="mt-1 text-[14px] text-muted">The panel reads the git history and asks you mainly about the code you wrote.</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -74,7 +74,7 @@ export default function RepoInput({ size = "lg", invite = null, disabled = false
     <div className="w-full">
       <form
         onSubmit={(e) => { e.preventDefault(); start(); }}
-        className={`group flex items-center gap-2 rounded-full border bg-surface/80 p-1.5 pl-5 shadow-[0_24px_70px_-36px_rgb(var(--brand)/0.55)] backdrop-blur transition-colors focus-within:border-brand/70 ${error ? "border-bad/60" : "border-line"}`}
+        className={`group flex items-center gap-2 rounded-full border bg-surface/70 p-1.5 pl-5 shadow-[0_0_40px_-12px_rgb(var(--prof)/0.45),0_24px_70px_-36px_rgb(var(--brand)/0.55)] backdrop-blur-xl transition-colors focus-within:border-brand/70 ${error ? "border-bad/60" : "border-line"}`}
       >
         <Github className="shrink-0 text-muted" />
         <input
@@ -89,7 +89,7 @@ export default function RepoInput({ size = "lg", invite = null, disabled = false
         <button
           type="submit"
           disabled={busy || disabled}
-          className={`group/btn inline-flex shrink-0 items-center gap-2 rounded-full bg-brand font-semibold text-white transition-all hover:shadow-[0_0_32px_-4px_rgb(var(--brand)/0.7)] active:scale-[0.98] disabled:opacity-60 ${big ? "px-6 py-3 text-[15px]" : "px-5 py-2.5 text-[14px]"}`}
+          className={`group/btn inline-flex shrink-0 items-center gap-2 rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] font-semibold text-white shadow-[0_0_26px_-6px_rgb(var(--brand)/0.85)] transition-all hover:shadow-[0_0_36px_-2px_rgb(var(--brand)/0.9)] active:scale-[0.98] disabled:opacity-60 ${big ? "px-6 py-3 text-[15px]" : "px-5 py-2.5 text-[14px]"}`}
         >
           {busy ? "Starting…" : "Start my viva"}
           <span className="transition-transform group-hover/btn:translate-x-1">→</span>

@@ -53,18 +53,18 @@ export default function Screening({ token, secret, theme, onToggleTheme }) {
   const role = data?.role;
   return (
     <div className="relative isolate min-h-[100svh]">
-      <div className="no-print"><Ambient /></div>
-      <header className="no-print sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 bg-bg/70 px-4 backdrop-blur-xl sm:px-6">
+      <div className="no-print"><Ambient calm /></div>
+      <header className="no-print sticky top-0 z-30 px-3 pt-3 sm:px-5"><div className="neon neon-quiet mx-auto flex h-[60px] max-w-[1100px] items-center justify-between gap-3 rounded-full bg-surface/70 pl-5 pr-2">
         <button onClick={() => go("/hire")} aria-label="Recruiter home"><Logo /></button>
         <div className="flex items-center gap-2">
           {data?.report && (
             <button onClick={() => window.print()} className="hidden items-center gap-2 rounded-full px-4 py-2 text-[14px] font-medium text-muted hover:bg-ink/[0.06] hover:text-ink sm:flex">
-              <Print /> Save as PDF
+              <Print /> Download PDF
             </button>
           )}
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
-      </header>
+      </div></header>
       <main className="mx-auto max-w-[1100px] px-4 pb-24 pt-10 sm:px-6">
         {error && <p role="alert" className="rounded-2xl border border-bad/40 bg-bad/10 p-5 text-bad">{error}</p>}
         {role && (
@@ -77,7 +77,7 @@ export default function Screening({ token, secret, theme, onToggleTheme }) {
           </div>
         )}
         {data && !data.report && (
-          <div className="rounded-[22px] border border-line bg-surface p-8 text-center text-[17px] text-muted">
+          <div className="rounded-[22px] neon neon-quiet p-8 text-center text-[17px] text-muted">
             {WAITING[data.status] || "Waiting…"}
             <p className="mt-2 text-[13px]">This page refreshes on its own.</p>
           </div>
@@ -98,8 +98,7 @@ function Body({ r, focus }) {
         words, their code or a test run, so you can check it.
       </p>
 
-      <section className="grid items-center gap-8 rounded-[28px] border border-line bg-surface p-6 sm:p-10 lg:grid-cols-[auto_1fr]"
-        style={{ backgroundImage: "radial-gradient(60% 90% at 0% 0%, rgb(var(--brand) / 0.12), transparent 70%)" }}>
+      <section className="neon neon-sunset grid items-center gap-8 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[auto_1fr]">
         <ScoreRing value={r.overall_score} color={ring} />
         <div>
           <div className="text-[15px] text-muted">Understanding of their own project</div>

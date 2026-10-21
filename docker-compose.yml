@@ -1,0 +1,45 @@
+# One-command start:   cp .env.example .env   (add a Groq key, or set VIVA_OFFLINE=1)   then   docker compose up --build
+# Open http://localhost:8000 — the API and the built React app on one URL, like the Render deploy.
+#
+# With Postgres instead of SQLite (reports survive container rebuilds):
+#   docker compose --profile postgres up --build
+# and set DATABASE_URL=postgresql://viva:viva@db:5432/viva in .env
+#
+# Test sandbox: inside this container there is no Docker, so set E2B_API_KEY in .env for real-repo test runs,
+# or run the backend directly on your machine (uvicorn backend.app.main:app) to use local Docker.
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      VIVA_DATA_DIR: /app/backend/data
+    volumes:
+      - viva-data:/app/backend/data      # SQLite database and repo copies survive restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  db:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: viva
+      POSTGRES_PASSWORD: viva
+      POSTGRES_DB: viva
+    volumes:
+      - viva-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U viva"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  viva-data:
+  viva-pg:

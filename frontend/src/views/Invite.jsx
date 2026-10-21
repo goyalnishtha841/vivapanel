@@ -20,10 +20,10 @@ export default function Invite({ token, theme, onToggleTheme }) {
   return (
     <div className="relative isolate min-h-[100svh]">
       <Ambient />
-      <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 bg-bg/70 px-4 backdrop-blur-xl sm:px-6">
+      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-5"><div className="neon neon-quiet mx-auto flex h-[60px] max-w-[1100px] items-center justify-between gap-3 rounded-full bg-surface/70 pl-5 pr-2">
         <Logo />
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-      </header>
+      </div></header>
       <main className="mx-auto max-w-[720px] px-4 pb-24 pt-10 sm:px-6">
         {error && <p role="alert" className="rounded-2xl border border-bad/40 bg-bad/10 p-5 text-bad">{error}</p>}
         {inv && (
@@ -38,10 +38,10 @@ export default function Invite({ token, theme, onToggleTheme }) {
             </p>
 
             {inv.used ? (
-              <div className="mt-8 rounded-[22px] border border-line bg-surface p-6">
+              <div className="mt-8 rounded-[22px] neon neon-quiet p-6">
                 <p className="text-[17px]">This link has already been used for a viva.</p>
                 {inv.session_id && (
-                  <button onClick={() => go(`/session/${inv.session_id}`)} className="mt-4 rounded-full bg-brand px-5 py-2.5 text-[15px] font-semibold text-white">
+                  <button onClick={() => go(`/session/${inv.session_id}`)} className="mt-4 rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] shadow-[0_0_24px_-6px_rgb(var(--brand)/0.8)] px-5 py-2.5 text-[15px] font-semibold text-white">
                     Continue my viva
                   </button>
                 )}

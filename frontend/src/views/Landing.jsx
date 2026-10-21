@@ -2,10 +2,12 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Ambient from "../components/Ambient.jsx";
 import HeroDemo from "../components/HeroDemo.jsx";
+import HeroDeco from "../components/HeroDeco.jsx";
+import CodeLines from "../components/CodeLines.jsx";
 import RepoInput from "../components/RepoInput.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Logo, { Mark } from "../components/Logo.jsx";
-import { Circle, Note, Underline } from "../components/RedPen.jsx";
+import { Note, Underline } from "../components/RedPen.jsx";
 import { Reveal, Stagger, StaggerItem } from "../components/Motion.jsx";
 import { EXAMINERS, ORDER, TONE, VERDICT } from "../lib/examiners.js";
 import survive from "../mock/survive.json";
@@ -32,6 +34,9 @@ const SAMPLE_Q = {
   junior: "When a user returns a book 7 days late, what integer does calculate_fine return and why?",
 };
 
+const PANEL_NEON = { prof: "neon-blue", eng: "neon-teal", jun: "neon-gold" };
+const STEP_NEON = { brand: "neon-sunset", prof: "neon-blue", eng: "neon-teal", jun: "neon-gold" };
+
 const STEPS = [
   { tone: "brand", title: "Paste your repo link", body: "Any public GitHub repository: your final-year project, a hackathon build, anything you'll have to defend." },
   { tone: "prof", title: "The panel reads your code", body: "The moderator maps your files and README, then splits the topics so no two examiners ask the same thing." },
@@ -55,22 +60,24 @@ export default function Landing() {
       <Ambient />
 
       {/* ---------------------------------------------------------- hero */}
-      <section className="mx-auto flex min-h-[100svh] max-w-[1180px] flex-col justify-center px-5 pb-16 pt-[120px] sm:px-8">
+      <div className="relative">
+      <HeroDeco />
+      <section className="relative mx-auto flex min-h-[100svh] max-w-[1180px] flex-col justify-center px-5 pb-16 pt-[120px] sm:px-8">
         <Stagger className="mx-auto w-full max-w-[880px] text-center">
           <StaggerItem>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/60 px-4 py-1.5 text-[14px] font-medium text-muted backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-brand" />
+            <span className="neon neon-quiet inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[14px] font-medium text-ink/85">
+              <span className="h-2 w-2 rounded-full bg-brand shadow-[0_0_10px_rgb(var(--brand))]" />
               A mock viva that has read your code
             </span>
           </StaggerItem>
           <StaggerItem>
-            <h1 className="mt-7 text-[46px] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-[68px] lg:text-[80px]">
+            <h1 className="mt-7 text-[46px] font-extrabold leading-[1.08] tracking-[-0.035em] [text-shadow:0_0_40px_rgb(var(--ink)/0.12)] sm:text-[68px] lg:text-[80px]">
               Can you defend
               <br />
-              <span className="relative inline-block font-serif text-[1.1em] font-normal italic tracking-normal text-brand">
+              <span className="relative inline-block font-serif text-[1.1em] font-normal italic tracking-normal text-brand [text-shadow:0_0_36px_rgb(var(--brand)/0.45)]">
                 your own code?
                 <Underline className="-bottom-3 left-0 h-6 w-full sm:-bottom-4" />
-                <Note className="absolute -right-[118px] bottom-1 hidden whitespace-nowrap text-[36px] not-italic lg:inline-block" rotate={-6} delay={1.5}>
+                <Note className="absolute left-full -bottom-3 ml-1 hidden whitespace-nowrap text-[34px] not-italic lg:inline-block" rotate={-6} delay={1.5}>
                   they will ask.
                 </Note>
               </span>
@@ -87,6 +94,7 @@ export default function Landing() {
           </StaggerItem>
         </Stagger>
       </section>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 60 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-80px" }}
@@ -99,11 +107,11 @@ export default function Landing() {
       {/* ---------------------------------------------------------- facts */}
       <section className="mx-auto max-w-[1100px] px-5 sm:px-8">
         <Reveal>
-          <div className="grid grid-cols-2 gap-y-10 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-y-10 lg:grid-cols-4 lg:divide-x lg:divide-line">
             {FACTS.map((f) => (
-              <div key={f.label} className="text-center">
-                <div className="text-[40px] font-extrabold tracking-tight sm:text-[48px]">{f.value}</div>
-                <div className="mt-1 text-[15px] text-muted">{f.label}</div>
+              <div key={f.label} className="px-4 text-center">
+                <div className="whitespace-nowrap text-[34px] font-extrabold tracking-tight [text-shadow:0_0_30px_rgb(var(--ink)/0.18)] sm:text-[46px] xl:text-[52px]">{f.value}</div>
+                <div className="mt-1 text-[16px] text-ink/75">{f.label}</div>
               </div>
             ))}
           </div>
@@ -126,7 +134,7 @@ export default function Landing() {
           <StoryCard index={0} tone="bad" pill="Practising with friends"
             title={<>They go <Accent>easy</Accent> on you.</>}
             text="Friends haven't read your code, so they ask what it does, nod, and move on. Nobody asks why you didn't salt the passwords, or what happens when two users click at once."
-            visual={<FriendChat />} />
+            visual={<FriendChat />} extra={<FriendIcons />} />
           <StoryCard index={1} tone="brand" pill="With Viva Panel"
             title={<>A panel that has <Accent>read your code.</Accent></>}
             text="Every question points at a real file and function. Vague answers get a sharper follow-up, the examiners challenge each other's verdicts, and claims get checked against your tests."
@@ -148,7 +156,7 @@ export default function Landing() {
             const t = TONE[ex.tone];
             return (
               <Reveal key={s} delay={i * 0.08}>
-                <div className="flex h-full flex-col rounded-[24px] border border-line bg-surface/70 p-7 backdrop-blur transition-transform duration-300 hover:-translate-y-1">
+                <div className={`neon ${PANEL_NEON[ex.tone]} neon-hover flex h-full flex-col rounded-[24px] p-7`}>
                   <div className="flex items-center gap-3">
                     <Avatar speaker={s} size={48} />
                     <div>
@@ -170,27 +178,29 @@ export default function Landing() {
       {/* ---------------------------------------------------------- how */}
       <section id="how" className="mx-auto max-w-[1100px] scroll-mt-24 px-5 pt-28 sm:px-8 lg:pt-36">
         <Heading title="From repo link to study plan" />
-        <ol className="mt-14 grid gap-10 md:grid-cols-4 md:gap-6">
+        <ol className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s, i) => (
-            <Reveal key={s.title} delay={i * 0.08}>
-              <li className="list-none">
-                <span className={`font-serif text-[56px] italic leading-none ${TONE[s.tone].text}`}>{i + 1}</span>
-                <h3 className="mt-3 text-[20px] font-bold">{s.title}</h3>
-                <p className="mt-2 text-[16px] leading-relaxed text-muted">{s.body}</p>
-              </li>
-            </Reveal>
+            <li key={s.title} className="h-full list-none">
+              <Reveal delay={i * 0.08} className="h-full">
+                <div className={`neon ${STEP_NEON[s.tone]} neon-hover h-full rounded-[22px] p-6`}>
+                  <span aria-hidden="true" className={`font-serif text-[52px] italic leading-none ${TONE[s.tone].text} [text-shadow:0_0_24px_currentColor]`}>{i + 1}</span>
+                  <h3 className="mt-3 text-[20px] font-bold"><span className="sr-only">Step {i + 1}: </span>{s.title}</h3>
+                  <p className="mt-2 text-[16px] leading-relaxed text-muted">{s.body}</p>
+                </div>
+              </Reveal>
+            </li>
           ))}
         </ol>
       </section>
 
       {/* ---------------------------------------------------------- who else */}
-      <section className="mx-auto max-w-[1100px] px-5 pt-28 sm:px-8 lg:pt-36">
+      <section id="teams" className="mx-auto max-w-[1100px] scroll-mt-24 px-5 pt-28 sm:px-8 lg:pt-36">
         <div className="grid gap-5 md:grid-cols-2">
           <Reveal>
-            <Audience title="For placement cells" text="Mock vivas for the whole batch: one link per student, the same rubric for everyone, and a report that shows who needs help on what before interviews start." />
+            <Audience tone="neon-violet" title="For placement cells" text="Mock vivas for the whole batch: one link per student, the same rubric for everyone, and a report that shows who needs help on what before interviews start." />
           </Reveal>
           <Reveal delay={0.08}>
-            <Audience title="For recruiters" text="Each report ends with a neutral summary of what the candidate demonstrably understands, citing their own answers and test results instead of a gut feeling." />
+            <Audience tone="neon-teal" title="For recruiters" text="Each report ends with a neutral summary of what the candidate demonstrably understands, citing their own answers and test results instead of a gut feeling." />
           </Reveal>
         </div>
       </section>
@@ -202,29 +212,19 @@ export default function Landing() {
       </section>
 
       {/* ---------------------------------------------------------- CTA */}
-      <section className="mx-auto max-w-[760px] px-5 pb-32 text-center sm:px-8">
-        <Reveal>
-          <Mark size={52} />
+      <section className="mx-auto max-w-[860px] px-5 pb-32 sm:px-8">
+        <Reveal className="neon neon-sunset rounded-[32px] px-6 py-14 text-center sm:px-12">
+          <div className="flex justify-center"><Mark size={52} /></div>
           <h2 className="mt-6 text-[40px] font-bold leading-tight tracking-[-0.02em] sm:text-[58px]">
             Walk into your viva <Accent>ready.</Accent>
           </h2>
           <p className="mx-auto mt-4 max-w-md text-[18px] text-muted">Five minutes with the panel now beats being caught out in the real one.</p>
-          <div className="mx-auto mt-10 max-w-[600px]"><RepoInput size="md" /></div>
+          <div className="mx-auto mt-10 max-w-[600px] text-left"><RepoInput size="md" /></div>
         </Reveal>
       </section>
 
       {/* ---------------------------------------------------------- footer */}
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-[1100px] flex-col gap-6 px-5 py-10 sm:px-8 md:flex-row md:items-center md:justify-between">
-          <Logo />
-          <div className="flex gap-6 text-[14px] text-muted">
-            <a href="#how" onClick={jump("#how")} className="hover:text-ink">How it works</a>
-            <a href="#faq" onClick={jump("#faq")} className="hover:text-ink">FAQ</a>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-ink">GitHub ↗</a>
-          </div>
-          <div className="text-[13px] text-muted">Built for the Ziro Hackathon 2026</div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
@@ -243,7 +243,7 @@ function Accent({ children }) {
 function Heading({ title, text }) {
   return (
     <Reveal className="mx-auto max-w-[860px] px-5 text-center sm:px-8">
-      <h2 className="text-balance text-[36px] font-bold leading-[1.08] tracking-[-0.025em] sm:text-[52px]">{title}</h2>
+      <h2 className="text-balance text-[36px] font-bold leading-[1.16] tracking-[-0.025em] sm:text-[52px]">{title}</h2>
       {text && <p className="mx-auto mt-5 max-w-[640px] text-balance text-[18px] leading-relaxed text-muted">{text}</p>}
     </Reveal>
   );
@@ -251,58 +251,71 @@ function Heading({ title, text }) {
 
 /* ------------------------------------------------- "would your answer survive?" */
 
+const ANSWER_TONE = {
+  a: { card: "neon-rose", dot: "bg-[#FF4E6A]" },
+  b: { card: "neon-violet", dot: "bg-[#9E70FF]" },
+  c: { card: "neon-teal", dot: "bg-eng" },
+};
+
 function TryOne() {
   const [pick, setPick] = useState(null);
   const chosen = survive.answers.find((a) => a.id === pick);
-  const lines = survive.code.split("\n");
   return (
+    // code stays on top on phones and tablets; side by side from lg up
     <div className="grid gap-6 lg:grid-cols-2">
       {/* the code and the question */}
       <Reveal>
-        <div className="h-full rounded-[24px] border border-line bg-surface/80 p-6 backdrop-blur sm:p-7">
-          <div className="text-[14px] font-medium text-muted">{survive.file}</div>
-          <pre className="mt-3 overflow-x-auto rounded-2xl bg-bg/70 p-4 font-mono text-[13px] leading-[1.75] [font-variant-ligatures:none]">
-            {lines.map((l, i) => (
-              <div key={i} className={survive.highlight.includes(i + 1) ? "-mx-4 bg-brand/10 px-4 text-ink" : "text-muted"}>{l || " "}</div>
-            ))}
-          </pre>
+        <div className="neon neon-blue h-full rounded-[24px] p-5 sm:p-7">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-[14px] font-medium text-ink">{survive.file}</span>
+            <span className="win-dots" aria-hidden="true"><i /><i /><i /></span>
+          </div>
+          <div className="mt-4 rounded-2xl border border-line/70 bg-bg/70 p-4">
+            <CodeLines code={survive.code} marked={survive.highlight} className="text-[12px] sm:text-[12.5px]" />
+          </div>
           <div className="mt-6 flex gap-3">
-            <Avatar speaker="professor" size={40} />
-            <div>
-              <div className={`text-[14px] font-semibold ${TONE.prof.text}`}>The Professor asks</div>
-              <p className="mt-1 text-[18px] leading-snug">{survive.question}</p>
+            <Avatar speaker="professor" size={44} />
+            <div className="min-w-0">
+              <div className={`text-[15px] font-semibold ${TONE.prof.text}`}>The Professor asks</div>
+              <p className="mt-1 text-[18px] leading-snug sm:text-[20px]">{survive.question}</p>
             </div>
           </div>
         </div>
       </Reveal>
 
-      {/* the answers */}
+      {/* the answers: real buttons; picking one reveals the verdict the panel gave it */}
       <Reveal delay={0.08}>
-        <div className="flex h-full flex-col gap-3">
+        <div className="flex h-full flex-col gap-4" role="group" aria-label="Pick the answer you'd give">
           {survive.answers.map((a) => {
             const on = pick === a.id;
+            const t = ANSWER_TONE[a.id] || ANSWER_TONE.a;
             return (
-              <button key={a.id} onClick={() => setPick(a.id)} aria-pressed={on}
-                className={`relative rounded-[20px] border p-5 text-left transition-all duration-300 ${on ? "border-brand/50 bg-surface" : "border-line bg-surface/60 hover:border-ink/25"} ${pick && !on ? "opacity-55" : ""}`}>
-                <div className="text-[13px] font-medium text-muted">{a.label}</div>
-                <p className="mt-1.5 text-[16px] leading-relaxed">“{a.text}”</p>
-                {on && (
-                  <span className={`absolute -right-2 -top-3 rotate-[8deg] font-hand text-[30px] font-bold leading-none ${a.verdict === "strong" ? "text-good" : "text-brand"}`}>
-                    <Circle className="-inset-x-4 -inset-y-2 h-[calc(100%+16px)] w-[calc(100%+32px)]" />
-                    {VERDICT[a.verdict].label.toLowerCase()}
+              <button key={a.id} type="button" onClick={() => setPick(a.id)} aria-pressed={on}
+                className={`neon ${t.card} neon-hover rounded-[20px] p-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/70 ${pick && !on ? "opacity-50 hover:opacity-80" : ""} ${on ? "scale-[1.01]" : ""}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2.5 text-[14px] font-medium text-ink/80">
+                    <span className={`h-2.5 w-2.5 rounded-full ${t.dot} shadow-[0_0_10px_currentColor]`} />{a.label}
                   </span>
-                )}
+                  {on && (
+                    <motion.span initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+                      className={`shrink-0 rounded-full px-3 py-0.5 text-[13px] font-semibold ${VERDICT[a.verdict].cls}`}>
+                      {VERDICT[a.verdict].label}
+                    </motion.span>
+                  )}
+                </div>
+                <p className="mt-2 text-[16px] leading-relaxed sm:text-[17px]">“{a.text}”</p>
               </button>
             );
           })}
 
           <AnimatePresence mode="wait">
             {chosen ? (
-              <motion.div key={chosen.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="rounded-[20px] border border-line bg-surface p-5">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-[14px] font-semibold">The panel's verdict</span>
-                  <Note className="text-[22px]" rotate={-3}>{chosen.mark}</Note>
+              <motion.div key={chosen.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }} aria-live="polite"
+                className={`neon ${chosen.verdict === "strong" ? "neon-teal" : "neon-sunset"} rounded-[20px] p-5`}>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="text-[15px] font-semibold">The panel's verdict</span>
+                  <span className={`font-hand text-[22px] leading-none ${chosen.verdict === "strong" ? "text-good" : "text-brand"}`}>{chosen.mark}</span>
                 </div>
                 <p className="mt-2 text-[15px] leading-relaxed text-muted">{chosen.judgement}</p>
                 <div className="mt-4 border-t border-line pt-4 text-[15px] leading-relaxed">
@@ -314,7 +327,7 @@ function TryOne() {
                 </div>
               </motion.div>
             ) : (
-              <motion.p key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-1 pt-2 text-[15px] text-muted">
+              <motion.p key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-1 pt-1 text-[15px] text-muted">
                 Pick the answer you'd give.
               </motion.p>
             )}
@@ -328,27 +341,45 @@ function TryOne() {
 /* ------------------------------------------------- story cards */
 
 const STORY_TONE = {
-  bad: { pill: "bg-bad/10 text-bad", glow: "rgb(var(--bad) / 0.12)" },
-  brand: { pill: "bg-brand/10 text-brand", glow: "rgb(var(--prof) / 0.14)" },
-  good: { pill: "bg-good/10 text-good", glow: "rgb(var(--good) / 0.12)" },
+  bad: { card: "neon-sunset", pill: "bg-[#FF4E6A]/15 text-[#E5395A] dark:text-[#FF6F86] ring-1 ring-[#FF4E6A]/30" },
+  brand: { card: "neon-teal", pill: "bg-eng/15 text-eng ring-1 ring-eng/30" },
+  good: { card: "neon-violet", pill: "bg-violet/15 text-violet ring-1 ring-violet/30" },
 };
 
-/** Cards stick and stack as you scroll on desktop; on phones they follow each other. */
-function StoryCard({ index, tone, pill, title, text, visual }) {
+/** One story card; they follow each other (no sticky stacking, so glass cards never cover each other's text). */
+function StoryCard({ index, tone, pill, title, text, visual, extra }) {
   const t = STORY_TONE[tone];
   return (
-    <div className="lg:sticky" style={{ top: 100 + index * 24 }}>
-      <Reveal>
-        <div className="grid items-center gap-8 overflow-hidden rounded-[28px] border border-line bg-surface p-7 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.45)] sm:p-10 lg:grid-cols-2"
-          style={{ backgroundImage: `radial-gradient(60% 80% at 0% 0%, ${t.glow}, transparent 70%)` }}>
-          <div>
+    <div>
+      <Reveal delay={index * 0.05}>
+        <div className={`neon ${t.card} grid items-center gap-8 rounded-[28px] p-6 sm:p-10 lg:grid-cols-2`}>
+          <div className="min-w-0">
             <span className={`inline-block rounded-full px-3 py-1 text-[14px] font-medium ${t.pill}`}>{pill}</span>
-            <h3 className="mt-5 text-[34px] font-bold leading-[1.08] tracking-[-0.02em] sm:text-[42px]">{title}</h3>
+            <h3 className="mt-5 text-[32px] font-bold leading-[1.14] tracking-[-0.02em] sm:text-[44px]">{title}</h3>
             <p className="mt-4 text-[17px] leading-relaxed text-muted">{text}</p>
+            {extra}
           </div>
-          <div>{visual}</div>
+          <div className="min-w-0">{visual}</div>
         </div>
       </Reveal>
+    </div>
+  );
+}
+
+/** Two small neon line icons under the "friends" card: a group, and a chat that goes nowhere. */
+function FriendIcons() {
+  return (
+    <div className="mt-6 flex items-center gap-3" aria-hidden="true">
+      <svg width="44" height="44" viewBox="0 0 48 48" fill="none" stroke="#FF8A3D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_8px_rgba(255,138,61,0.7)]">
+        <rect x="4" y="8" width="40" height="32" rx="10" stroke="#FF4E8A" />
+        <circle cx="18" cy="21" r="4" /><circle cx="30" cy="21" r="4" />
+        <path d="M11 33c1.5-4 4-6 7-6s5.5 2 7 6M23 33c1.5-4 4-6 7-6s5.5 2 7 6" />
+      </svg>
+      <svg width="62" height="44" viewBox="0 0 64 46" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_8px_rgba(139,92,255,0.8)]">
+        <path d="M6 6h34a5 5 0 0 1 5 5v14a5 5 0 0 1-5 5H22l-8 7v-7H6a5 5 0 0 1-5-5V11a5 5 0 0 1 5-5z" stroke="#8B5CFF" />
+        <path d="M24 16h34a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5h-6v6l-7-6H24a5 5 0 0 1-5-5V21a5 5 0 0 1 5-5z" stroke="#4F9BFF" />
+        <path d="M30 27h4M38 27h4M46 27h4" stroke="#4F9BFF" />
+      </svg>
     </div>
   );
 }
@@ -362,28 +393,38 @@ function FriendChat() {
     ["them", "Nah you'll be fine"],
   ];
   return (
-    <div className="space-y-2.5 rounded-2xl bg-bg/60 p-5">
+    <div className="space-y-3 rounded-2xl border border-line/60 bg-bg/60 p-5">
       {lines.map(([who, text], i) => (
-        <div key={i} className={`w-fit max-w-[80%] rounded-2xl px-4 py-2 text-[15px] ${who === "you" ? "ml-auto bg-brand/15" : "bg-raised"}`}>{text}</div>
+        <motion.div key={i} initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+          transition={{ delay: 0.15 + i * 0.12, duration: 0.4 }}
+          className={`w-fit max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] ${who === "you" ? "bubble-you ml-auto rounded-br-md text-ink" : "rounded-bl-md bg-raised text-ink/90"}`}>
+          {text}
+        </motion.div>
       ))}
     </div>
   );
 }
 
+// The same function the Professor asks about, with the questions it draws pinned to it.
+const AUTH_SNIPPET = `def hash_password(pw: str) -> str:
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def verify_password(pw: str, hashed: str) -> bool:
+    return hash_password(pw) == hashed`;
+
 function FileRefs() {
-  const rows = [
-    ["app/auth.py", "hash_password", "prof", "Why no salt?"],
-    ["app/routes/loans.py", "borrow_book", "eng", "Two requests at once?"],
-    ["app/services/fines.py", "calculate_fine", "jun", "Walk me through it"],
-  ];
   return (
-    <div className="space-y-2 rounded-2xl bg-bg/60 p-4">
-      {rows.map(([path, fn, tone, q]) => (
-        <div key={path} className="flex items-center justify-between gap-3 rounded-xl px-3 py-3">
-          <span className="min-w-0 truncate font-mono text-[13px]">{path}<span className="text-muted">:{fn}</span></span>
-          <span className={`shrink-0 rounded-full px-3 py-1 text-[13px] font-medium ${TONE[tone].soft} ${TONE[tone].text}`}>{q}</span>
-        </div>
-      ))}
+    <div className="rounded-2xl border border-line/60 bg-bg/70 p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="min-w-0 truncate font-mono text-[13px]">app/auth.py<span className="text-muted">:hash_password</span></span>
+        <span className={`rounded-full px-3 py-1 text-[13px] font-medium ${TONE.prof.soft} ${TONE.prof.text} ring-1 ring-prof/30`}>Why no salt?</span>
+      </div>
+      <div className="mt-2 flex justify-end">
+        <span className={`rounded-full px-3 py-1 text-[13px] font-medium ${TONE.eng.soft} ${TONE.eng.text} ring-1 ring-eng/30`}>Two requests at once?</span>
+      </div>
+      <div className="mt-3 rounded-xl border border-line/60 bg-bg/80 p-3">
+        <CodeLines code={AUTH_SNIPPET} marked={[2]} className="text-[11px] sm:text-[11.5px]" />
+      </div>
     </div>
   );
 }
@@ -391,10 +432,10 @@ function FileRefs() {
 function MiniReport() {
   const topics = [["Password hashing", 73], ["SQLite scalability", 22], ["Borrow concurrency", 10]];
   return (
-    <div className="rounded-2xl bg-bg/60 p-5">
+    <div className="rounded-2xl border border-line/60 bg-bg/60 p-5">
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-bad/70 text-[22px] font-extrabold">26</div>
-        <div>
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-bad/70 text-[22px] font-extrabold shadow-[0_0_24px_-4px_rgb(var(--bad)/0.7)]">26</div>
+        <div className="min-w-0">
           <div className="text-[17px] font-semibold">Not ready yet</div>
           <div className="text-[14px] text-muted">Strong on security basics, weak on concurrency</div>
         </div>
@@ -402,8 +443,11 @@ function MiniReport() {
       <div className="mt-5 space-y-3.5">
         {topics.map(([name, v]) => (
           <div key={name}>
-            <div className="mb-1 flex justify-between text-[14px]"><span>{name}</span><span className="text-muted">{v}</span></div>
-            <div className="h-2 rounded-full bg-raised"><div className={`h-2 rounded-full ${v >= 60 ? "bg-good" : "bg-bad"}`} style={{ width: `${v}%` }} /></div>
+            <div className="mb-1 flex justify-between gap-3 text-[14px]"><span>{name}</span><span className="text-muted">{v}</span></div>
+            <div className="h-2 rounded-full bg-raised">
+              <motion.div initial={{ width: 0 }} whileInView={{ width: `${v}%` }} viewport={{ once: true }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                className={`h-2 rounded-full ${v >= 60 ? "bg-good shadow-[0_0_12px_rgb(var(--good)/0.7)]" : "bg-bad shadow-[0_0_12px_rgb(var(--bad)/0.7)]"}`} />
+            </div>
           </div>
         ))}
       </div>
@@ -411,9 +455,60 @@ function MiniReport() {
   );
 }
 
-function Audience({ title, text }) {
+const YEAR = new Date().getFullYear();
+const TEAM = ["Nishtha Goyal", "Asmita Roy", "Akshita"];
+
+function Footer() {
+  const cols = [
+    { title: "Product", links: [["Try a question", "#try"], ["The panel", "#panel"], ["How it works", "#how"], ["FAQ", "#faq"]] },
+    { title: "For teams", links: [["Placement cells", "#teams"], ["Recruiters", "#teams"], ["Create an interview link", "#/hire"]] },
+    { title: "Project", links: [["Source on GitHub ↗", REPO_URL], ["Architecture ↗", `${REPO_URL}/blob/main/docs/architecture.md`]] },
+  ];
   return (
-    <div className="h-full rounded-[24px] border border-line bg-surface/70 p-8 backdrop-blur">
+    <footer className="relative mt-4 border-t border-line/80 bg-surface/50 backdrop-blur-xl">
+      {/* a thin gradient line along the top edge */}
+      <div aria-hidden="true" className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
+      <div className="mx-auto grid max-w-[1140px] gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="max-w-[320px]">
+          <Logo />
+          <p className="mt-4 text-[15px] leading-relaxed text-muted">
+            Three AI examiners read your GitHub project and question you on it, so the real viva holds no surprises.
+          </p>
+          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 text-[13px] text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand" /> Built for the Ziro Agentic AI Hackathon 2026
+          </p>
+        </div>
+        {cols.map((c) => (
+          <nav key={c.title} aria-label={c.title}>
+            <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-ink/80">{c.title}</div>
+            <ul className="mt-4 space-y-3">
+              {c.links.map(([label, href]) => {
+                const external = href.startsWith("http");
+                const onClick = href.startsWith("#") && !href.startsWith("#/") ? jump(href) : undefined;
+                return (
+                  <li key={label}>
+                    <a href={href} onClick={onClick} {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+                      className="text-[15px] text-muted transition-colors hover:text-ink">{label}</a>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        ))}
+      </div>
+      <div className="border-t border-line/80">
+        <div className="mx-auto flex max-w-[1140px] flex-col gap-3 px-5 py-6 text-[13px] text-muted sm:px-8 md:flex-row md:items-center md:justify-between">
+          <p>© {YEAR} Viva Panel · Team Triple Threat AI ({TEAM.join(", ")}). All rights reserved.</p>
+          <p>Viva Panel is a practice tool; its scores are not official grades.</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function Audience({ title, text, tone = "neon-blue" }) {
+  return (
+    <div className={`neon ${tone} neon-hover h-full rounded-[24px] p-8`}>
       <h3 className="text-[24px] font-bold">{title}</h3>
       <p className="mt-3 text-[17px] leading-relaxed text-muted">{text}</p>
     </div>
@@ -423,7 +518,7 @@ function Audience({ title, text }) {
 function Faq() {
   const [open, setOpen] = useState(0);
   return (
-    <div className="divide-y divide-line border-y border-line">
+    <div className="neon neon-quiet divide-y divide-line rounded-[24px] px-6 sm:px-8">
       {FAQS.map((f, i) => {
         const isOpen = open === i;
         return (

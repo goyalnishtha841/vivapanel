@@ -17,6 +17,7 @@ export default {
         prof: c("prof"),
         eng: c("eng"),
         jun: c("jun"),
+        violet: c("violet"),
         good: c("good"),
         warn: c("warn"),
         bad: c("bad"),

@@ -44,3 +44,33 @@ the viva.
 - **On Render:** set `E2B_API_KEY` (e2b.dev, free tier) and the sandbox is a hosted microVM. Without it, real repos
   are read and searched but not test-run; the sample project still shows test verification.
 - **On a VM or locally:** Docker is used automatically if it's running (`VIVA_SANDBOX=docker` to force it).
+
+### Checking the sandbox after a deploy
+
+Open `https://<your-app>/health`. The `sandbox` field says what is live, without digging through logs:
+
+| `sandbox` shows | Meaning | Fix |
+|---|---|---|
+| `"backend": "e2b"` | Hosted sandbox is on | — |
+| `"backend": "off"` + `"problem"` | No sandbox: real repos aren't test-run | Set `E2B_API_KEY` in Render → Environment, then redeploy |
+| `"last_error": "..."` | A sandbox started but failed to set up (the same text as the `sandbox prepare failed:` log line) | Read the message; it's usually a dependency that won't install, or an invalid key |
+
+The setup step falls back to `virtualenv` when an image has no `python3-venv` (E2B's default image may not).
+
+### Keeping report links alive (Postgres)
+
+Render's free plan wipes the disk on every restart or redeploy, and SQLite lives on that disk, so old report
+links stop working. To keep them:
+
+1. Create a free database at [neon.tech](https://neon.tech) (or Supabase) and copy its connection string
+   (`postgresql://…?sslmode=require`).
+2. In Render → Environment, add `DATABASE_URL` with that string and redeploy.
+3. Open `/health`: `"storage": "postgres"` means it's on. Tables are created automatically.
+
+### Demo limits and cleanup
+
+- `VIVA_DAILY_SESSIONS` (default 40) caps new vivas per rolling 24 h for everyone, and `VIVA_DAILY_PER_VISITOR`
+  (default 6) per visitor, counted by a salted hash of their IP (the address itself isn't stored). Candidates
+  opening an interview link are never blocked.
+- Every 30 minutes a cleanup job deletes repo copies of vivas idle for `VIVA_CLEANUP_AFTER_H` hours (default 3) and
+  closes their sandboxes. Finished vivas already clean up straight away. Transcripts and reports are kept.

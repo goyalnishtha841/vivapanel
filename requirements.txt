@@ -7,3 +7,4 @@ uvicorn[standard]>=0.30
 tiktoken>=0.7   # agents/profile_tokens.py
 google-genai>=1.0
 e2b>=2.0   # hosted test sandbox (optional; Docker works locally without it)
+psycopg[binary]>=3.1   # Postgres when DATABASE_URL is set (Neon / Supabase); SQLite otherwise

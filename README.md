@@ -107,7 +107,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Hiring mode | ✅ Full flow verified with offline agents in the browser; a live-model run is next |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 120 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 122 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | ✅ Locally: the student's pytest suite runs in a throwaway Docker container (no network while testing, resource and time limits), verified on `pallets/markupsafe`. 🚧 On Render: a hosted sandbox key is being set up by the team (E2B, or a free alternative such as Daytona); until then the live site reads and searches real repos, and the sample project shows test verification |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -223,15 +223,14 @@ viva-panel/
 
 ## Getting started
 
-### Option 1: Docker (closest to production)
+### Option 1: Docker Compose (one command, closest to production)
 
 ```bash
-cp .env.example .env            # add GROQ_API_KEY, and GEMINI_API_KEY as a backup
-docker build -t viva-panel .
-docker run -p 8000:8000 --env-file .env viva-panel
+cp .env.example .env            # add GROQ_API_KEY (and GEMINI_API_KEY as a backup), or set VIVA_OFFLINE=1
+docker compose up --build       # add --profile postgres for a local Postgres instead of SQLite
 ```
 
-Then open http://localhost:8000.
+Then open http://localhost:8000. Plain Docker works too: `docker build -t viva-panel . && docker run -p 8000:8000 --env-file .env viva-panel`.
 
 ### Option 2: run the parts separately (for development)
 
@@ -276,6 +275,9 @@ All settings come from `.env` (see [.env.example](.env.example)).
 | `E2B_API_KEY` | — | Hosted test sandbox for real repos (Render can't run Docker) |
 | `VIVA_SANDBOX` | `auto` | `auto` (E2B if keyed, else Docker if running), `docker`, `e2b` or `off` |
 | `VIVA_DAILY_SESSIONS` | `40` | New vivas allowed per rolling 24 h on a public deploy (0 = no cap) |
+| `VIVA_DAILY_PER_VISITOR` | `6` | The same, per visitor (salted hash of the IP; interview links exempt) |
+| `DATABASE_URL` | — | Postgres (Neon / Supabase) so sessions and report links survive restarts; empty = SQLite |
+| `VIVA_CLEANUP_AFTER_H` | `3` | Repo copies of abandoned vivas are deleted after this many idle hours (reports kept) |
 | `VIVA_OFFLINE` | `0` | `1` runs scripted agents with no model calls |
 | `VIVA_DEBUG` | `0` | `1` prints latency and tokens for every model call |
 
@@ -295,7 +297,7 @@ All settings come from `.env` (see [.env.example](.env.example)).
 | `POST` | `/invites` | Hiring: `{title, company, focus[]}` → candidate link token + private results key |
 | `GET` | `/invites/{token}` | What the candidate sees before starting (role, already used?) |
 | `GET` | `/screening/{token}?key=` | The recruiter's results: status, then the screening report with transcript |
-| `GET` | `/health` | Liveness and the active model |
+| `GET` | `/health` | Liveness, the active model, the storage engine and the test sandbox's status |
 
 Full contract, including the event and report shapes: [docs/api-contract.md](docs/api-contract.md).
 
@@ -357,7 +359,7 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
   they should. Follow-ups on specific lines and the Junior's "explain it simply" make that hard,
   but not impossible.
 - **Demo hosting.** Render's free plan sleeps after 15 minutes idle (the first visit then takes
-  about a minute), and sessions don't survive a restart.
+  about a minute). Without `DATABASE_URL`, sessions don't survive a restart; with Postgres they do.
 
 ---
 
@@ -381,12 +383,14 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 - [x] Test sandbox for real repos: Docker locally (E2B backend ready); network cut before tests run
 - [x] Agentic repo reader: an agent explores the repo to choose what to examine
 - [x] Hiring mode: interview links, role-weighted questions, a private screening report with per-skill scores
+- [x] Voice with a distinct voice per examiner, and hands-free mode (mic opens after each question)
+- [x] Postgres option, per-visitor limits, cleanup of abandoned vivas, designed PDF report, one-command Docker Compose
 
 **Next**
 
 - [ ] Hosted sandbox key on Render (E2B or Daytona)
 - [ ] Results from 5 real student repos
-- [ ] Persistent storage (Postgres) and a teacher view for a whole batch
+- [ ] A teacher view for a whole batch
 - [ ] Calibrate scores against real faculty viva marks
 - [ ] More sandboxes: Node/Jest, Java/JUnit
 
@@ -396,12 +400,12 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 
 Built for the **Ziro Agentic AI Hackathon 2026** by a three-person team.
 
-<!-- Add each member's name and GitHub profile. -->
+Team **Triple Threat AI**
 
 | Member | Area |
 |---|---|
-| Nishtha Goyal | AI and agents (reader, moderator, examiners, scorer, guardrails, LLM routing, evals), plus the backend, UI, re-viva, team and hiring modes |
-| | Hosted test sandbox, deployment |
-| | Demo video, slides, UI polish |
+| Nishtha Goyal (team lead) | AI and agents (reader, moderator, examiners, scorer, guardrails, LLM routing, evals), plus the backend, UI, re-viva, team and hiring modes |
+| Asmita Roy ([@techAsmita](https://github.com/techAsmita)) | UI redesign and polish, voice and hands-free mode, mobile layout, testing on real repos, sandbox checks, demo video and slides |
+| Akshita | Hosted test sandbox, deployment |
 
-**License:** not yet chosen. All rights reserved by the authors until one is added.
+**License:** not yet chosen. © 2026 Team Triple Threat AI (Nishtha Goyal, Asmita Roy, Akshita). All rights reserved until a licence is added.

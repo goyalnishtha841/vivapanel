@@ -18,3 +18,7 @@ services:
         sync: false
       - key: VIVA_DAILY_SESSIONS
         value: "40"
+      - key: VIVA_DAILY_PER_VISITOR   # one visitor can't use up the day's quota
+        value: "6"
+      - key: DATABASE_URL             # free Neon/Supabase Postgres: reports survive restarts (empty = SQLite)
+        sync: false

@@ -27,22 +27,22 @@ export default function HeroDemo() {
   const current = [...shown].reverse().find((e) => EXAMINERS[e.speaker]);
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-line bg-surface/80 shadow-[0_50px_120px_-50px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-        <span className="text-[14px] font-medium text-ink">campus-library-api</span>
+    <div className="neon neon-ocean overflow-hidden rounded-[28px]">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-7">
+        <span className="text-[16px] font-semibold text-ink sm:text-[18px]">campus-library-api</span>
         <span className="flex items-center gap-2 text-[13px] text-muted">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-brand" /> Replay of a real session
+          <span className="h-2 w-2 animate-pulse rounded-full bg-brand shadow-[0_0_10px_rgb(var(--brand))]" /> Replay of a real session
         </span>
       </div>
 
-      <div className="grid gap-0 md:grid-cols-[200px_1fr]">
+      <div className="grid gap-0 md:grid-cols-[230px_1fr]">
         {/* examiners */}
         <div className="flex gap-3 border-b border-line p-4 md:flex-col md:border-b-0 md:border-r">
           {ORDER.map((s) => {
             const on = current?.speaker === s;
             const t = TONE[EXAMINERS[s].tone];
             return (
-              <div key={s} className={`flex flex-1 items-center gap-3 rounded-2xl p-2.5 transition-colors ${on ? `${t.soft} ring-1 ${t.ring}` : ""}`}>
+              <div key={s} className={`flex flex-1 items-center gap-3 rounded-2xl p-2.5 transition-all duration-500 ${on ? `${t.soft} ring-1 ${t.ring} shadow-[0_0_30px_-8px_currentColor] ${t.text}` : ""}`}>
                 <Avatar speaker={s} size={36} speaking={on && !reduce} dim={!on} />
                 <div className="hidden min-w-0 sm:block">
                   <div className={`text-[13px] font-semibold ${on ? t.text : "text-ink"}`}>{EXAMINERS[s].short}</div>
@@ -78,14 +78,14 @@ export default function HeroDemo() {
 function Line({ e }) {
   if (e.speaker === "student") {
     return (
-      <div className="ml-auto max-w-[78%] rounded-2xl rounded-br-md bg-brand/15 px-4 py-2.5 text-[14px] leading-snug text-ink">
+      <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bubble-you px-4 py-2.5 text-[14px] leading-snug text-ink">
         <span className="line-clamp-2">{e.message}</span>
       </div>
     );
   }
   if (e.tool_used) {
     return (
-      <div className="flex items-center gap-2 rounded-xl bg-eng/10 px-3 py-2 text-[13px] font-medium text-eng">
+      <div className="flex items-center gap-2 rounded-xl bg-eng/[0.12] px-3 py-2 text-[13px] font-medium text-eng ring-1 ring-eng/25">
         <Wrench /> {e.speaker === "system" ? e.message : `Running ${e.file_ref} in the sandbox…`}
       </div>
     );
@@ -101,7 +101,7 @@ function Line({ e }) {
         {v && <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${VERDICT[v].cls}`}>last answer: {VERDICT[v].label.toLowerCase()}</span>}
         {outcome && <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[11px] font-medium text-warn">claim {outcome}</span>}
       </div>
-      <div className={`rounded-2xl rounded-tl-md border-l-[3px] ${t.border} bg-raised/70 px-4 py-2.5 text-[14px] leading-snug text-ink`}>
+      <div className={`rounded-2xl rounded-tl-md border-l-[3px] ${t.border} bg-raised/80 px-4 py-2.5 text-[14px] leading-snug text-ink`}>
         <span className="line-clamp-3"><CodeText text={e.message.replace(/^Looking at `[^`]+`( in `[^`]+`)?: /, "")} /></span>
       </div>
     </div>

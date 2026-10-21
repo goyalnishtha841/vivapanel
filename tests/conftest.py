@@ -10,6 +10,9 @@ os.environ["VIVA_OFFLINE"] = "1"
 os.environ["VIVA_DATA_DIR"] = tempfile.mkdtemp(prefix="viva-test-")
 os.environ["VIVA_STATIC_DIR"] = str(Path(os.environ["VIVA_DATA_DIR"]) / "no-frontend")
 os.environ["VIVA_DAILY_SESSIONS"] = "0"
+os.environ["VIVA_DAILY_PER_VISITOR"] = "0"
+# never touch a real database from .env; set VIVA_TEST_DATABASE_URL to run the suite against Postgres
+os.environ["DATABASE_URL"] = os.environ.get("VIVA_TEST_DATABASE_URL", "")
 
 import pytest  # noqa: E402
 

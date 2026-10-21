@@ -26,7 +26,9 @@ def wait_for(client, sid, statuses, timeout=15):
 
 def test_health(client):
     r = client.get("/health")
-    assert r.status_code == 200 and r.json() == {"status": "ok", "llm": "offline"}
+    body = r.json()
+    assert r.status_code == 200 and body["status"] == "ok" and body["llm"] == "offline"
+    assert body["sandbox"]["backend"] in ("off", "docker", "e2b")  # deploy check: which test sandbox is live
 
 
 def test_full_viva_over_http(client):

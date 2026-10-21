@@ -53,10 +53,10 @@ export default function Hire({ theme, onToggleTheme }) {
   return (
     <div className="relative isolate min-h-[100svh]">
       <Ambient />
-      <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 bg-bg/70 px-4 backdrop-blur-xl sm:px-6">
+      <header className="sticky top-0 z-30 px-3 pt-3 sm:px-5"><div className="neon neon-quiet mx-auto flex h-[60px] max-w-[1100px] items-center justify-between gap-3 rounded-full bg-surface/70 pl-5 pr-2">
         <button onClick={() => go("/")} aria-label="Back to home"><Logo /></button>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-      </header>
+      </div></header>
       <main className="mx-auto max-w-[760px] px-4 pb-24 pt-10 sm:px-6">
         <p className="text-[14px] font-medium text-brand">For recruiters and placement cells</p>
         <h1 className="mt-2 text-[34px] font-bold leading-tight tracking-[-0.02em] sm:text-[44px]">
@@ -68,7 +68,7 @@ export default function Hire({ theme, onToggleTheme }) {
         </p>
 
         {!made ? (
-          <form onSubmit={create} className="mt-8 space-y-5 rounded-[24px] border border-line bg-surface p-6 sm:p-8">
+          <form onSubmit={create} className="mt-8 space-y-5 rounded-[24px] neon neon-quiet p-6 sm:p-8">
             <Field label="Role" hint="Read by the panel; it steers which topics they probe.">
               <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength={80}
                 placeholder="Backend developer intern" className={INPUT} />
@@ -82,7 +82,7 @@ export default function Hire({ theme, onToggleTheme }) {
                 placeholder="backend, REST APIs, testing" className={INPUT} />
             </Field>
             {error && <p role="alert" className="text-[14px] text-bad">{error}</p>}
-            <button disabled={busy} className="rounded-full bg-brand px-6 py-3 text-[15px] font-semibold text-white disabled:opacity-60">
+            <button disabled={busy} className="rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] shadow-[0_0_24px_-6px_rgb(var(--brand)/0.8)] px-6 py-3 text-[15px] font-semibold text-white disabled:opacity-60">
               {busy ? "Creating…" : "Create interview link"}
             </button>
           </form>
@@ -103,7 +103,7 @@ export default function Hire({ theme, onToggleTheme }) {
         {recent.length > 0 && (
           <section className="mt-10">
             <h2 className="text-[18px] font-bold">Your links on this device</h2>
-            <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
+            <ul className="mt-3 divide-y divide-line rounded-2xl neon neon-quiet">
               {recent.map((r) => (
                 <li key={r.results} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-[14px]">
                   <span>{r.title}{r.company && <span className="text-muted"> · {r.company}</span>}
@@ -143,7 +143,7 @@ function LinkBox({ title, note, url, open }) {
     }
   }
   return (
-    <div className="rounded-[20px] border border-line bg-surface p-5">
+    <div className="rounded-[20px] neon neon-quiet p-5">
       <div className="text-[16px] font-semibold">{title}</div>
       <p className="mt-1 text-[13px] text-muted">{note}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -151,7 +151,7 @@ function LinkBox({ title, note, url, open }) {
         <button onClick={copy} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[14px] font-medium hover:border-brand/60">
           {copied ? <><Check /> Copied</> : <><Copy /> Copy</>}
         </button>
-        {open && <a href={url} className="rounded-full bg-brand px-4 py-2 text-[14px] font-semibold text-white">Open</a>}
+        {open && <a href={url} className="rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] shadow-[0_0_24px_-6px_rgb(var(--brand)/0.8)] px-4 py-2 text-[14px] font-semibold text-white">Open</a>}
       </div>
     </div>
   );

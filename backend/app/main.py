@@ -11,6 +11,7 @@ import json
 import secrets
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,11 +23,17 @@ from agents import llm
 from agents.schemas import ProjectSummary, RoleBrief
 from agents.tools import LocalRepoTools
 
-from . import config, runner, store
+from . import config, runner, sandbox, store
 from .ingest import IngestError, parse_repo_url
 from . import authorship
 
-app = FastAPI(title="Viva Panel API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app):
+    runner.start_janitor()  # deletes repo copies of abandoned vivas every half hour
+    yield
+
+
+app = FastAPI(title="Viva Panel API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 POLL_S = 0.35        # how often the stream checks for new events
@@ -69,7 +76,8 @@ def _role_of(row: dict) -> RoleBrief | None:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "llm": "offline" if llm.is_offline() else f"{llm.PROVIDER}:{llm.MODEL}"}
+    return {"status": "ok", "llm": "offline" if llm.is_offline() else f"{llm.PROVIDER}:{llm.MODEL}",
+            "storage": store.ENGINE, "sandbox": sandbox.status()}
 
 
 @app.get("/contributors")
@@ -125,7 +133,7 @@ def screening(token: str, key: str = ""):
 
 
 @app.post("/session")
-def create_session(body: NewSession):
+def create_session(body: NewSession, request: Request):
     prev = None
     invite = store.get_invite(body.invite) if body.invite else None
     if body.invite and not invite:
@@ -148,10 +156,17 @@ def create_session(body: NewSession):
             parse_repo_url(url)
         except IngestError as e:
             return error(400, e.code, e.detail)
-    if config.DAILY_SESSION_LIMIT and store.sessions_since(time.time() - 86400) >= config.DAILY_SESSION_LIMIT:
+    day_ago = time.time() - 86400
+    if config.DAILY_SESSION_LIMIT and store.sessions_since(day_ago) >= config.DAILY_SESSION_LIMIT:
         return error(429, "daily_limit", "Today's vivas are used up on this demo. Please try again tomorrow.")
+    client = store.client_id(request.client.host if request.client else None)
+    # one visitor can't use up everyone's quota; a candidate opening an interview link is never blocked
+    if (not invite and client and config.DAILY_PER_VISITOR
+            and store.sessions_since(day_ago, client=client) >= config.DAILY_PER_VISITOR):
+        return error(429, "visitor_limit",
+                     f"You've used your {config.DAILY_PER_VISITOR} vivas for today on this demo. Please come back tomorrow.")
     sid = uuid.uuid4().hex[:12]
-    store.create_session(sid, url, invite=body.invite if invite else None)
+    store.create_session(sid, url, invite=body.invite if invite else None, client=client)
     if invite and not store.bind_invite(body.invite, sid):
         return error(409, "invite_used", "This interview link has already been used.")
     if prev:

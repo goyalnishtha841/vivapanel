@@ -5,48 +5,51 @@
 /* RGB triplets so Tailwind opacity modifiers (bg-brand/20) work. */
 :root {
   /* light: warm exam paper — also the better choice on projectors */
-  --bg: 247 244 238;
-  --surface: 255 253 249;
-  --raised: 239 235 227;
-  --line: 226 220 209;
-  --ink: 26 24 22;
-  --muted: 112 106 98;
-  --brand: 222 58 38;    /* the red pen */
+  --bg: 248 246 243;
+  --surface: 255 255 255;
+  --raised: 242 239 245;
+  --line: 226 222 234;
+  --ink: 22 21 30;
+  --muted: 96 93 108;
+  --brand: 204 50 32;    /* the red pen (deep enough for 4.5:1 contrast on paper) */
   --prof: 52 84 214;     /* fountain-pen blue — the Professor */
   --eng: 0 138 112;      /* teal — the Engineer */
   --jun: 190 134 0;      /* highlighter — the Junior */
   --good: 22 146 88;
   --warn: 196 122 0;
   --bad: 214 56 40;
-  --orb-alpha: 0.16;
-  --glow-alpha: 0.10;
-  --grain-alpha: 0.16;
+  --violet: 124 77 230;
+  --grid-alpha: 0.09;
+  --arc-alpha: 0.5;
+  --card-alpha: 0.82;
 }
 
 .dark {
-  /* dark: ink */
-  --bg: 12 12 14;        /* #0C0C0E */
-  --surface: 20 20 23;
-  --raised: 29 29 33;
-  --line: 42 42 48;
-  --ink: 238 236 232;
-  --muted: 152 149 144;
-  --brand: 255 92 70;    /* #FF5C46 */
+  /* dark: night sky */
+  --bg: 6 7 16;          /* #060710 */
+  --surface: 14 16 30;
+  --raised: 24 27 46;
+  --line: 40 44 70;
+  --ink: 240 241 247;
+  --muted: 156 160 182;
+  --brand: 255 90 70;    /* #FF5A46 */
   --prof: 122 148 255;   /* #7A94FF */
   --eng: 52 211 178;     /* #34D3B2 */
   --jun: 250 204 72;     /* #FACC48 */
   --good: 74 210 140;
   --warn: 250 180 70;
   --bad: 255 92 70;
-  --orb-alpha: 0.13;
-  --glow-alpha: 0.09;
-  --grain-alpha: 0.07;
+  --violet: 158 112 255;
+  --grid-alpha: 0.13;
+  --arc-alpha: 0.9;
+  --card-alpha: 0.62;
 }
 
 * { border-color: rgb(var(--line)); }
-html { scroll-behavior: smooth; color-scheme: light; }
+html { scroll-behavior: smooth; color-scheme: light; background: rgb(var(--bg)); overscroll-behavior: none; }
 html.dark { color-scheme: dark; }
 body {
+  overscroll-behavior: none;
   background: rgb(var(--bg));
   color: rgb(var(--ink));
   font-family: "Outfit", system-ui, sans-serif;
@@ -54,12 +57,132 @@ body {
 }
 ::selection { background: rgb(var(--brand) / 0.22); }
 
+/* a visible ring for keyboard users everywhere (mouse clicks don't show it) */
+:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 2px; border-radius: 6px; }
+.focus-visible\:ring-2:focus-visible { outline: none; }
+
 code, pre, .font-mono { font-variant-ligatures: none; }
 
 .code-chip {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.82em;
 }
+
+/* ------------------------------------------------------------ background scene */
+
+.cosmos-glow {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(60% 50% at 12% 20%, rgb(var(--prof) / 0.10), transparent 70%),
+    radial-gradient(50% 45% at 88% 30%, rgb(var(--eng) / 0.08), transparent 70%),
+    radial-gradient(70% 45% at 50% 105%, rgb(var(--brand) / 0.10), transparent 70%);
+}
+.cosmos-grid {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgb(var(--ink) / var(--grid-alpha)) 1px, transparent 1.4px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 40%, transparent 100%);
+}
+.cosmos-arcs { opacity: var(--arc-alpha); animation: breathe 9s ease-in-out infinite; }
+html:not(.dark) .cosmos-glow {
+  background:
+    radial-gradient(55% 45% at 10% 15%, rgba(122, 148, 255, 0.16), transparent 70%),
+    radial-gradient(45% 40% at 90% 25%, rgba(52, 211, 178, 0.13), transparent 70%),
+    radial-gradient(60% 40% at 50% 0%, rgba(192, 107, 255, 0.08), transparent 70%),
+    radial-gradient(70% 45% at 50% 105%, rgba(255, 110, 80, 0.14), transparent 70%);
+}
+.cosmos-calm .cosmos-arcs { opacity: calc(var(--arc-alpha) * 0.35); }
+.cosmos-calm .cosmos-glow { opacity: 0.6; }
+
+.arc-pulse {
+  stroke-dasharray: 70 930;
+  stroke-dashoffset: 1000;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 4px #fff);
+  animation: arc-run linear infinite;
+}
+.arc-dot { filter: drop-shadow(0 0 6px currentColor); }
+@keyframes arc-run { to { stroke-dashoffset: 0; } }
+@keyframes breathe { 0%, 100% { opacity: var(--arc-alpha); } 50% { opacity: calc(var(--arc-alpha) * 0.72); } }
+
+.sphere {
+  position: absolute;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  animation: bob ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-14px); }
+}
+
+/* gentle hover-float for hero decorations */
+@keyframes drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+.drift { animation: drift 7s ease-in-out infinite; }
+
+/* ------------------------------------------------------------ neon glass cards */
+/*
+ * <div class="neon neon-sunset rounded-[24px]">: translucent glass, a 1.5px gradient border
+ * and a soft outer glow in the same colours. Tones: sunset, ocean, teal, violet, blue, rose, gold.
+ */
+.neon {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(180deg, rgb(var(--surface) / var(--card-alpha)), rgb(var(--surface) / calc(var(--card-alpha) - 0.1)));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 0 42px -14px var(--neon-glow, transparent), 0 30px 80px -40px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.35s ease, transform 0.35s ease;
+}
+.neon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: var(--neon-border, rgb(var(--line)));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.neon-hover:hover { box-shadow: 0 0 60px -10px var(--neon-glow, transparent), 0 30px 80px -40px rgba(0, 0, 0, 0.55); transform: translateY(-3px); }
+
+.neon-sunset { --neon-border: linear-gradient(120deg, #FF4E8A, #FF8A3D 45%, #8B5CFF); --neon-glow: rgba(255, 90, 110, 0.55); }
+.neon-ocean  { --neon-border: linear-gradient(120deg, #34D3B2, #4F7BFF 40%, #8B5CFF 65%, #FF8A3D); --neon-glow: rgba(110, 120, 255, 0.5); }
+.neon-teal   { --neon-border: linear-gradient(120deg, #34D3B2, #2BB3FF 60%, #34D3B2); --neon-glow: rgba(52, 211, 178, 0.5); }
+.neon-violet { --neon-border: linear-gradient(120deg, #8B5CFF, #C06BFF 50%, #6F7BFF); --neon-glow: rgba(140, 92, 255, 0.5); }
+.neon-blue   { --neon-border: linear-gradient(120deg, #4F7BFF, #7A94FF 50%, #34D3B2); --neon-glow: rgba(90, 130, 255, 0.45); }
+.neon-rose   { --neon-border: linear-gradient(120deg, #FF4E6A, #FF7A9A 50%, #C06BFF); --neon-glow: rgba(255, 78, 106, 0.5); }
+.neon-gold   { --neon-border: linear-gradient(120deg, #FACC48, #FF8A3D 60%, #FACC48); --neon-glow: rgba(250, 190, 70, 0.4); }
+.neon-quiet  { --neon-border: linear-gradient(120deg, rgb(var(--line)), rgb(var(--ink) / 0.18), rgb(var(--line))); --neon-glow: transparent; }
+
+/* the light theme keeps the shapes but tones the glow down */
+html:not(.dark) .neon { box-shadow: 0 0 34px -16px var(--neon-glow, transparent), 0 1px 2px rgba(30, 20, 60, 0.04), 0 24px 60px -34px rgba(50, 30, 90, 0.28); }
+
+/* the student's chat bubbles: deep wine at night, soft blush by day */
+.bubble-you { background: rgba(122, 31, 43, 0.65); box-shadow: inset 0 0 0 1px rgba(255, 78, 106, 0.25); }
+html:not(.dark) .bubble-you { background: #FFE6EA; color: #5A1420; box-shadow: inset 0 0 0 1px rgba(232, 60, 90, 0.22); }
+
+/* window dots on code panels */
+.win-dots { display: inline-flex; gap: 7px; }
+.win-dots i { width: 11px; height: 11px; border-radius: 9999px; display: block; }
+.win-dots i:nth-child(1) { background: #FF5F57; }
+.win-dots i:nth-child(2) { background: #FEBC2E; }
+.win-dots i:nth-child(3) { background: #28C840; }
+
+/* syntax colours for the small code samples */
+.tok-kw { color: rgb(var(--prof)); }
+.tok-fn { color: #FFB86B; }
+.tok-str { color: #F2C14E; }
+.tok-num { color: #FF8A8A; }
+.tok-com { color: rgb(var(--eng)); opacity: 0.8; }
+.tok-ty { color: #7FD8FF; }
+html:not(.dark) .tok-fn { color: #B4561A; }
+html:not(.dark) .tok-str { color: #8A6A00; }
+html:not(.dark) .tok-ty { color: #0F6F96; }
 
 @keyframes caret { 50% { opacity: 0; } }
 .caret::after { content: "▍"; margin-left: 2px; animation: caret 1s steps(1) infinite; color: rgb(var(--brand)); }
@@ -70,8 +193,34 @@ code, pre, .font-mono { font-variant-ligatures: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
+.print-only { display: none; }
+
+/* ------------------------------------------------------------ the PDF (Save as PDF from the report) */
+/* Always the light "exam paper" palette, whatever the screen theme: crisp on paper and on any PDF viewer. */
+@page { size: A4; margin: 14mm 12mm; }
 @media print {
+  :root, .dark {
+    --bg: 255 255 255; --surface: 255 255 255; --raised: 244 242 248; --line: 222 218 232;
+    --ink: 20 20 28; --muted: 88 86 100; --brand: 206 52 36;
+    --prof: 52 84 214; --eng: 0 128 104; --jun: 168 118 0; --violet: 110 70 210;
+    --good: 18 128 76; --warn: 176 108 0; --bad: 200 50 36;
+  }
+  html, html.dark, body { background: #fff !important; color-scheme: light !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 12px; }
   .no-print { display: none !important; }
-  * { opacity: 1 !important; transform: none !important; }
-  section { break-inside: avoid; }
+  .print-only { display: block !important; }
+  * { opacity: 1 !important; transform: none !important; animation: none !important; text-shadow: none !important; }
+  /* cards: a clean hairline box with a coloured top edge instead of glass and glow */
+  .neon { background: #fff !important; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+          border: 1px solid rgb(var(--line)); border-top: 3px solid var(--print-accent, rgb(var(--line))); }
+  .neon::before { display: none !important; }
+  .neon-sunset, .neon-rose { --print-accent: #E2445C; }
+  .neon-teal, .neon-ocean { --print-accent: #13A08C; }
+  .neon-blue { --print-accent: #4F6FE0; }
+  .neon-violet { --print-accent: #7B4FE0; }
+  .neon-gold { --print-accent: #D99A1E; }
+  .avoid-break, h2, h3 { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+  section { break-inside: auto; }
+  main { padding-left: 0 !important; padding-right: 0 !important; }
 }

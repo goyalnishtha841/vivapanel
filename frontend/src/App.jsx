@@ -8,6 +8,17 @@ import Screening from "./views/Screening.jsx";
 import { useRoute } from "./lib/route.js";
 import { useTheme } from "./lib/theme.js";
 
+/** First thing a keyboard user reaches: jumps past the header to the repo box. Invisible until focused. */
+function SkipLink() {
+  return (
+    <a href="#repo-input"
+      onClick={(e) => { e.preventDefault(); document.querySelector("#repo-input")?.focus(); }}
+      className="fixed left-3 top-3 z-[60] -translate-y-24 rounded-full bg-ink px-4 py-2 text-[14px] font-semibold text-bg transition-transform focus:translate-y-0">
+      Skip to the repo box
+    </a>
+  );
+}
+
 export default function App() {
   const { page, id, extra } = useRoute();
   const [theme, toggleTheme] = useTheme();
@@ -19,6 +30,7 @@ export default function App() {
   if (page === "screening" && id) return <Screening token={id} secret={extra} theme={theme} onToggleTheme={toggleTheme} />;
   return (
     <>
+      <SkipLink />
       <Nav theme={theme} onToggleTheme={toggleTheme} />
       <Landing />
     </>

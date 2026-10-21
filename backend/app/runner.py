@@ -221,3 +221,45 @@ def retry_report(sid: str) -> None:
     """Re-run scoring for a finished viva whose report failed (e.g. a rate limit)."""
     row = store.get_session(sid)
     threading.Thread(target=lambda: _score(sid, _panel(sid, row)), daemon=True).start()
+
+
+# ---------- cleanup of abandoned vivas ----------
+
+def sweep(now: float | None = None) -> list[str]:
+    """Delete repo copies (and close sandboxes) of sessions idle for VIVA_CLEANUP_AFTER_H hours.
+
+    Finished vivas already clean up after themselves; this catches the ones a student closed halfway, so the
+    server's disk doesn't fill up. Transcripts and reports stay in the database. Returns the sessions swept.
+    """
+    import time
+
+    now = now or time.time()
+    cutoff = now - config.CLEANUP_AFTER_H * 3600
+    swept = []
+    for d in config.REPOS_DIR.iterdir() if config.REPOS_DIR.exists() else []:
+        if not d.is_dir():
+            continue
+        row = store.get_session(d.name)
+        last = row["updated_at"] if row else d.stat().st_mtime
+        if last < cutoff:
+            _close_sandbox(d.name)
+            shutil.rmtree(d, ignore_errors=True)
+            swept.append(d.name)
+    if swept:
+        print(f"cleanup: removed {len(swept)} idle repo copies", flush=True)
+    return swept
+
+
+def start_janitor(every_s: int = 1800) -> None:
+    """Run sweep() every half hour in the background."""
+    import time
+
+    def loop():
+        while True:
+            try:
+                sweep()
+            except Exception as e:  # noqa: BLE001 - cleanup must never take the server down
+                print(f"cleanup failed: {e}", flush=True)
+            time.sleep(every_s)
+
+    threading.Thread(target=loop, daemon=True, name="janitor").start()

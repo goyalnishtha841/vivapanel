@@ -18,6 +18,12 @@ MAX_REPO_KB = int(os.getenv("VIVA_MAX_REPO_KB", "150000"))      # GitHub's size 
 CLONE_TIMEOUT_S = int(os.getenv("VIVA_CLONE_TIMEOUT_S", "90"))
 # A public URL shares one set of free-tier LLM keys: cap new sessions per rolling 24 h (0 = no cap).
 DAILY_SESSION_LIMIT = int(os.getenv("VIVA_DAILY_SESSIONS", "40"))
+# ...and per visitor (hashed IP), so one person can't use up everyone's quota (0 = no cap). Interview links are exempt.
+DAILY_PER_VISITOR = int(os.getenv("VIVA_DAILY_PER_VISITOR", "6"))
+# Postgres (Neon / Supabase) so sessions and report links survive restarts; empty = SQLite in DATA_DIR.
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+# Cleanup: repo copies (and their sandboxes) are deleted once a session has been idle this long. Reports stay.
+CLEANUP_AFTER_H = float(os.getenv("VIVA_CLEANUP_AFTER_H", "3"))
 # Built frontend (frontend/dist); when present the API also serves the app, so one URL does both.
 STATIC_DIR = Path(os.getenv("VIVA_STATIC_DIR", ROOT / "frontend" / "dist"))
 CORS_ORIGINS = [o.strip() for o in os.getenv("VIVA_CORS_ORIGINS", "http://localhost:5190,http://127.0.0.1:5190").split(",") if o.strip()]

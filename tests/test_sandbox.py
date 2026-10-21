@@ -81,3 +81,15 @@ def test_no_sandbox_without_python_tests(tmp_path, monkeypatch):
     assert sandbox.make(tmp_path, [], None) is None
     assert sandbox.make(Path("/no/such/clone"), [], "pytest -q") is None
     assert isinstance(sandbox.make(tmp_path, [], "pytest -q"), sandbox.DockerSandbox)
+
+
+def test_install_falls_back_to_virtualenv_when_venv_is_missing():
+    # E2B's default image can lack python3-venv; the install script must not depend on it alone
+    script = sandbox.INSTALL.format(venv="/v", work="/w")
+    assert "python3 -m venv /v" in script and "virtualenv" in script
+
+
+def test_status_explains_a_missing_backend(monkeypatch):
+    monkeypatch.setenv("VIVA_SANDBOX", "off")
+    s = sandbox.status()
+    assert s["backend"] == "off" and "problem" in s
