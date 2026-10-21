@@ -54,7 +54,7 @@ than in this file.
 
 ---
 
-## Real-repo runs (fill in after testing on the live site)
+## Real-repo runs (live site, 21–22 Oct 2026)
 
 The same flow on real public repos, through the deployed URL. Record every run, including the ones that fail.
 
@@ -70,13 +70,29 @@ Set `DAYTONA_API_KEY` on Render first, or the Sandbox column says "not triggered
 
 | # | Repo | Panel | Questions cite real files? | Sandbox | Report | Time |
 |---|---|---|---|---|---|---|
-| 1 | | | | | | |
-| 2 | | | | | | |
-| 3 | | | | | | |
-| 4 | | | | | | |
-| 5 | | | | | | |
+| 1 | SpectaclesGuy/scrapeflow (Python) | 12 questions | 12/12 cite a file | Engineer chose `tests/test_app.py`; run failed (Daytona: no default region) | ✅ 18/100 | 358 s |
+| 2 | goyalnishtha841/vivapanel (Python) | 12 questions | 12/12 cite a file | Engineer chose `tests/test_api.py`; run failed (same) | ✅ 16/100 | 534 s |
+| 3 | goyalnishtha841/gazelens (Python + JS) | 12 questions | 12/12 cite a file | Engineer chose `backend/gaze_estimation/test_gaze_estimation.py`; run failed (same) | ✅ 15/100 | 722 s |
+| 4 | goyalnishtha841/foresight (Python + JS) | 11 questions | 11/11 cite a file | Engineer chose `backend/tests/test_forecast.py`; run failed (same) | ✅ 20/100 | 562 s |
+| 5 | goyalnishtha841/tradepilot | — | — | — | pending (the visitor's daily viva limit was reached) | — |
 
-**Result: _ of 5 ran end to end.** Copy this number into the README ("Real GitHub repos") and
+**Result: 4 of 4 runs so far ran end to end** (the 5th is pending). Scores are low because the live-check script
+answers every question with the same fixed, vague answers; it tests the pipeline, not a student.
+
+What the runs show:
+- Every question named a real file and function of that repo (e.g. *"Why does `detect_seasonal_period` default
+  to a period of 4 when the series length is below 14?"* on foresight).
+- The Engineer explored each repo with tools (read files, searched for symbols) and picked a real test file to
+  check a claim. All four test runs failed at sandbox creation with *"This organization does not have a default
+  region"*: a Daytona account setting (Dashboard → set a default region), not a code fault. `/health` shows the
+  same error under `sandbox.last_error`.
+- No cross-challenges: they follow only strong or partial verdicts, and the scripted answers never earned one.
+- When an answer dodges the question, follow-ups can circle the same point (three hashing questions in a row in
+  the hiring run).
+
+**Hiring mode, live** (`live-2026-10-22-hiring.json`, scrapeflow, role "Backend developer intern"): 12 questions,
+recruiter report generated (score 16; skills: backend 18, REST APIs 10, testing not tested), and the candidate's
+own session link was refused the recruiter report (403). Copy this number into the README ("Real GitHub repos") and
 `docs/jury-qa.md` ("Tested on many repos?").
 
 ---

@@ -49,14 +49,20 @@ def call(base: str, method: str, path: str, body: dict | None = None, timeout: i
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(base + path, data=data, method=method,
                                  headers={"Content-Type": "application/json", "User-Agent": "viva-live-check"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, json.loads(r.read() or b"null")
-    except urllib.error.HTTPError as e:
+    for attempt in range(6):  # a home connection drops DNS now and then; a 4xx/5xx answer is never retried
         try:
-            return e.code, json.loads(e.read() or b"null")
-        except ValueError:
-            return e.code, None
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.status, json.loads(r.read() or b"null")
+        except urllib.error.HTTPError as e:
+            try:
+                return e.code, json.loads(e.read() or b"null")
+            except ValueError:
+                return e.code, None
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if attempt == 5:
+                raise
+            print(f"    (network error: {e}; retrying)", flush=True)
+            time.sleep(5 * (attempt + 1))
 
 
 def events_since(base: str, sid: str, after: int, wait_s: float = 4.0) -> list[tuple[int, dict]]:
@@ -80,18 +86,23 @@ def events_since(base: str, sid: str, after: int, wait_s: float = 4.0) -> list[t
     return out
 
 
-def viva(base: str, repo: str | None, invite: str | None = None, max_minutes: float = 12) -> dict:
-    """One full viva. Returns a record with the outcome, the transcript and the report (or the error)."""
+def viva(base: str, repo: str | None, invite: str | None = None, max_minutes: float = 12,
+         resume: str | None = None) -> dict:
+    """One full viva. Returns a record with the outcome, the transcript and the report (or the error).
+    resume: a session id already started (e.g. by a run that lost its connection), continued instead of a new one."""
     started = time.time()
     rec: dict = {"repo": repo, "invite": bool(invite), "started": dt.datetime.now().isoformat(timespec="seconds")}
-    body = {"repo_url": repo or ""}
-    if invite:
-        body["invite"] = invite
-    code, res = call(base, "POST", "/session", body)
-    if code != 200:
-        rec.update(ok=False, stage="start", error=f"{code} {res}")
-        return rec
-    sid = res["session_id"]
+    if resume:
+        sid = resume
+    else:
+        body = {"repo_url": repo or ""}
+        if invite:
+            body["invite"] = invite
+        code, res = call(base, "POST", "/session", body)
+        if code != 200:
+            rec.update(ok=False, stage="start", error=f"{code} {res}")
+            return rec
+        sid = res["session_id"]
     rec["session_id"] = sid
     events: list[dict] = []
     seq, answered = 0, 0
@@ -126,7 +137,7 @@ def viva(base: str, repo: str | None, invite: str | None = None, max_minutes: fl
     tools = [e for e in events if e.get("tool_used")]
     rec["questions"] = len(questions)
     rec["questions_with_file"] = sum(1 for q in questions if q.get("file_ref"))
-    rec["cross_challenges"] = sum(1 for q in questions if q.get("message", "").lower().startswith(("i'd add a point", "i disagree")))
+    rec["cross_challenges"] = sum(1 for q in questions if q.get("message", "").lower().startswith(("i'd push back", "to build on")))
     rec["tool_calls"] = [{"tool": e["tool_used"], "speaker": e["speaker"], "message": e["message"][:200]} for e in tools]
     runs = [e for e in tools if e.get("tool_used") == "run_tests" and e.get("speaker") == "system"]
     rec["sandbox"] = runs[-1]["message"][:200] if runs else None
@@ -172,8 +183,11 @@ def main() -> int:
     ap.add_argument("--base", default=DEFAULT_BASE)
     ap.add_argument("--repos", nargs="+", default=DEFAULT_REPOS)
     ap.add_argument("--only", choices=["health", "repos", "hiring"])
+    ap.add_argument("--resume", nargs="*", default=[], metavar="REPO=SESSION_ID",
+                    help="continue vivas a broken run already started, instead of starting new ones")
     a = ap.parse_args()
     base = a.base.rstrip("/")
+    resumes = dict(r.split("=", 1) for r in a.resume)
 
     print(f"Viva Panel live check against {base}\n")
     code, h = call(base, "GET", "/health", timeout=120)  # the first call may wake a sleeping free instance
@@ -189,7 +203,7 @@ def main() -> int:
         rows, ok = [], 0
         for i, repo in enumerate(a.repos, 1):
             print(f"[{i}/{len(a.repos)}] {repo} …", flush=True)
-            rec = viva(base, repo)
+            rec = viva(base, repo, resume=resumes.get(repo))
             path = save(rec, repo.rstrip("/").split("/")[-1])
             ok += bool(rec.get("ok"))
             rows.append(row(i, rec))

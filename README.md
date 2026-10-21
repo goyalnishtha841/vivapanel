@@ -105,7 +105,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Agents (reader, moderator, 3 examiners, scorer) | ✅ Live on Groq with a Gemini backup; edge-case eval 7/7 |
 | Re-viva, team mode, code viewer | ✅ Verified live (retake: fine calculation 0 → 100; team mode on markupsafe: 259 of 544 commits matched) |
 | Hiring mode | ✅ Full flow verified with offline agents in the browser; a live-model run is next |
-| Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
+| Real GitHub repos | ✅ 4 of 4 of the team's own repos ran end to end on the live site (scrapeflow, vivapanel, gazelens, foresight; every question cited a real file), plus a live hiring-mode run; a 5th is pending. See [test-case-proof.md](docs/test-case-proof.md) |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
 | Tests and CI | ✅ 131 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | ✅ Locally: the student's pytest suite runs in a throwaway Docker container (no network while testing, resource and time limits), verified on `pallets/markupsafe`. 🚧 On Render: a hosted sandbox key is being set up by the team (E2B, or a free alternative such as Daytona); until then the live site reads and searches real repos, and the sample project shows test verification |

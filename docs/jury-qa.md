@@ -109,7 +109,7 @@ gets *easier*, not harder, so a stuck student can still show what they know.
 
 | Likely question | Straight answer |
 |---|---|
-| "Tested on many repos?" | *(Update before the demo.)* Fully tested on our sample repo; [N] of 5 test repos run end to end. |
+| "Tested on many repos?" | Yes: 4 of 4 of our team's own repos ran end to end on the live site, every question citing a real file, plus a live hiring-mode run (docs/test-case-proof.md). Update to "5 of 5" once tradepilot runs. |
 | "Is the scoring validated?" | Not against human examiners yet; the weights are a reasoned first version. Calibrating with faculty is next. |
 | "Does it handle non-Python repos?" | Questions and tools work on any language; the sandbox currently targets Python and pytest. |
 | "Can a student game it?" | Pasting in a rehearsed or AI-written answer is the main risk. Follow-ups on specific lines and the Junior's "explain simply" make that hard, but not impossible. |

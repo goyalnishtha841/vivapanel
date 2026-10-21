@@ -1,0 +1,911 @@
+{
+  "repo": "https://github.com/goyalnishtha841/vivapanel",
+  "invite": false,
+  "started": "2026-10-21T23:56:38",
+  "session_id": "89d63a1f0d95",
+  "events": [
+    {
+      "speaker": "moderator",
+      "message": "Checking github.com/goyalnishtha841/vivapanel…",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:26:38Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Cloning the repository…",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:26:38Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Reading 127 files. Exploring the code to decide what the panel should ask about…",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:26:40Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Reading your project and planning the panel…",
+      "reasoning": "Moderator is assigning topics so examiners don't overlap.",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:27:04Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Welcome to your viva. The Professor will ask about key file selection algorithm and sandbox lifecycle design; the Engineer will ask about concurrent event emission safety and GitHub token security handling; the Junior will ask about end‑to‑end viva flow and prompt selection per examiner.",
+      "reasoning": "Professor → backend/app/ingest.py: The README says the system automatically selects key files, so we need to examine the algorithm and its design trade‑offs. | Professor → backend/app/sandbox.py: Understanding why a per‑session Sandbox is created and started early reveals the correctness and resource implications of the design. | Engineer → backend/app/runner.py: The runner emits events from multiple threads, so we must verify thread‑safety and potential race conditions. | Engineer → backend/app/ingest.py: The code injects a personal access token into HTTP headers, raising questions about secret leakage and request validation. | Junior → frontend/src/lib/api.js: A simple explanation of how the frontend starts a session and interacts with the backend helps illustrate the overall system. | Junior → agents/prompts/professor.md: Describing how the system chooses a prompt file for each examiner makes the role‑specific questioning clear.",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:27:45Z"
+    },
+    {
+      "speaker": "professor",
+      "message": "Can you explain the criteria and weighting your pick_key_files implementation uses to rank files, and why you chose this heuristic over a simple language‑extension filter?",
+      "reasoning": "Understanding the selection algorithm reveals design trade‑offs and justification for the chosen approach.",
+      "file_ref": "backend/app/ingest.py:pick_key_files",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:27:54Z"
+    },
+    {
+      "speaker": "student",
+      "message": "It works because I designed it carefully and tested it.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:06Z"
+    },
+    {
+      "speaker": "professor",
+      "message": "In pick_key_files, what specific file attributes are scored and how are their weights combined to produce the final ranking?",
+      "reasoning": "[weak] The student gave a generic claim without referencing any actual criteria, weighting, or code behavior, which does not match the detailed implementation in pick_key_files. → We need a concrete explanation of the algorithm to assess understanding.",
+      "file_ref": "backend/app/ingest.py:pick_key_files",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:07Z"
+    },
+    {
+      "speaker": "student",
+      "message": "I kept this part simple so it is easy to read; the trade-off is that it is less flexible if requirements change.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:18Z"
+    },
+    {
+      "speaker": "professor",
+      "message": "Which file properties does pick_key_files score (e.g., extension, path depth, keyword matches) and what numeric weights are assigned to each before summing?",
+      "reasoning": "[weak] The student gives no concrete details about which file attributes are scored or how weights are combined, which does not match the implementation in pick_key_files. → Need concrete code‑level explanation to assess understanding.",
+      "file_ref": "backend/app/ingest.py:pick_key_files",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:20Z"
+    },
+    {
+      "speaker": "student",
+      "message": "My tests cover this case, and the whole test suite passes.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:31Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Engineer, over to you.",
+      "reasoning": "Professor judged the last answer weak: The student gave no concrete details about the file attributes or weights used in pick_key_files, contradicting the implementation. Topic closed; Engineer has 2 topic(s) left.",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:32Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "If two agents call _emit for the same session ID at the same time, can a race condition corrupt the event store, and how does your code prevent that?",
+      "reasoning": "We need to verify thread‑safety of concurrent event emission.",
+      "file_ref": "backend/app/runner.py:_emit",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:45Z"
+    },
+    {
+      "speaker": "student",
+      "message": "I'm not sure about that part.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:57Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Junior, over to you.",
+      "reasoning": "Engineer judged the last answer weak: The student admitted uncertainty; the code shows _emit directly writes to the shared store without any synchronization, so concurrent calls can interleave and corrupt the event sequence. Topic closed; Junior has 2 topic(s) left.",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:58Z"
+    },
+    {
+      "speaker": "junior",
+      "message": "What happens step‑by‑step when the frontend calls createSession with a repo URL, and how does the backend use that to start a new viva session?",
+      "reasoning": "Need to connect API call to backend session creation flow.",
+      "file_ref": "frontend/src/lib/api.js:createSession",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:28:59Z"
+    },
+    {
+      "speaker": "student",
+      "message": "I would add input validation there and handle the error explicitly instead of letting it fail silently.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:29:10Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "That's testable. Let me run tests/test_api.py in the sandbox.",
+      "reasoning": "Check that POST /session returns session_id as claimed",
+      "file_ref": "tests/test_api.py",
+      "tool_used": "run_tests",
+      "timestamp": "2026-10-21T18:29:23Z"
+    },
+    {
+      "speaker": "system",
+      "message": "Sandbox: error — 0 passed, 0 failed (0.0s)",
+      "reasoning": "pytest -q tests/test_api.py",
+      "file_ref": "tests/test_api.py",
+      "tool_used": "run_tests",
+      "timestamp": "2026-10-21T18:29:23Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "Let me look at backend/app/main.py.",
+      "reasoning": "Inspect POST /session endpoint implementation",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "read_file",
+      "timestamp": "2026-10-21T18:29:30Z"
+    },
+    {
+      "speaker": "system",
+      "message": "Read backend/app/main.py (272 lines)",
+      "reasoning": "",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "read_file",
+      "timestamp": "2026-10-21T18:29:30Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "Let me search the code for “@app.post(\"/session\"”.",
+      "reasoning": "Find POST /session implementation",
+      "file_ref": null,
+      "tool_used": "search_code",
+      "timestamp": "2026-10-21T18:30:02Z"
+    },
+    {
+      "speaker": "system",
+      "message": "Search “@app.post(\"/session\"”: 1 match(es) — first: backend/app/main.py:135",
+      "reasoning": "backend/app/main.py:135 @app.post(\"/session\")",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "search_code",
+      "timestamp": "2026-10-21T18:30:02Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "Sandbox failed to run tests, so no evidence about the POST /session behavior was gathered. Can you describe how the /session endpoint validates input and constructs the response JSON?",
+      "reasoning": "[test inconclusive] The POST /session endpoint expects JSON with repo_url, student, invite and returns a session_id in the response body.",
+      "file_ref": "tests/test_api.py",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:31:59Z"
+    },
+    {
+      "speaker": "student",
+      "message": "That function returns early when the input is empty, otherwise it processes each item in order.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:32:11Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "Let me look at backend/app/main.py.",
+      "reasoning": "Check /session endpoint implementation",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "read_file",
+      "timestamp": "2026-10-21T18:32:23Z"
+    },
+    {
+      "speaker": "system",
+      "message": "Read backend/app/main.py (272 lines)",
+      "reasoning": "",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "read_file",
+      "timestamp": "2026-10-21T18:32:23Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "Let me search the code for “@app.post(\"/session\"”.",
+      "reasoning": "Find session creation endpoint",
+      "file_ref": null,
+      "tool_used": "search_code",
+      "timestamp": "2026-10-21T18:32:40Z"
+    },
+    {
+      "speaker": "system",
+      "message": "Search “@app.post(\"/session\"”: 1 match(es) — first: backend/app/main.py:135",
+      "reasoning": "backend/app/main.py:135 @app.post(\"/session\")",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "search_code",
+      "timestamp": "2026-10-21T18:32:40Z"
+    },
+    {
+      "speaker": "engineer",
+      "message": "Let me look at backend/app/main.py.",
+      "reasoning": "Inspect POST /session implementation",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "read_file",
+      "timestamp": "2026-10-21T18:33:25Z"
+    },
+    {
+      "speaker": "system",
+      "message": "Read backend/app/main.py (272 lines)",
+      "reasoning": "",
+      "file_ref": "backend/app/main.py",
+      "tool_used": "read_file",
+      "timestamp": "2026-10-21T18:33:25Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Junior, over to you.",
+      "reasoning": "Engineer judged the last answer weak: The student’s answer does not match the code: create_session validates many fields, checks invites, retake logic, URL parsing, rate limits, then creates a session ID and starts the runner. It does not simply return early on empty input. Topic closed; Junior has 1 topic(s) left.",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:33:54Z"
+    },
+    {
+      "speaker": "junior",
+      "message": "What does the code in agents/prompts/professor.md do to select a prompt for the Professor examiner, and which variables or configurations influence that choice?",
+      "reasoning": "It asks about the specific file and the selection mechanism.",
+      "file_ref": "agents/prompts/professor.md",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:33:55Z"
+    },
+    {
+      "speaker": "student",
+      "message": "It works because I designed it carefully and tested it.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:06Z"
+    },
+    {
+      "speaker": "junior",
+      "message": "What specific variable or configuration in agents/prompts/professor.md determines which Professor prompt is chosen when a question is posed?",
+      "reasoning": "[weak] The student’s reply is generic and does not explain what agents/prompts/professor.md does, nor how prompts are selected for the Professor examiner. → The answer was vague; the question targets the code’s selection logic.",
+      "file_ref": "agents/prompts/professor.md",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:07Z"
+    },
+    {
+      "speaker": "student",
+      "message": "I kept this part simple so it is easy to read; the trade-off is that it is less flexible if requirements change.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:18Z"
+    },
+    {
+      "speaker": "junior",
+      "message": "Which variable inside agents/prompts/professor.md is used to pick the Professor’s prompt when a question is generated, and how is that variable set or overridden?",
+      "reasoning": "[weak] The answer does not explain any code or variable; it is generic and does not match agents/prompts/professor.md. → The student gave a generic statement; we need a specific variable.",
+      "file_ref": "agents/prompts/professor.md",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:19Z"
+    },
+    {
+      "speaker": "student",
+      "message": "My tests cover this case, and the whole test suite passes.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:37Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "Professor, over to you.",
+      "reasoning": "Junior judged the last answer weak: The student’s answer is generic and does not explain any variable or configuration used in agents/prompts/professor.md; it does not match the actual code, which selects the prompt via the `professor_prompt` variable set from the prompts configuration. Topic closed; Professor has 1 topic(s) left.",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:38Z"
+    },
+    {
+      "speaker": "professor",
+      "message": "How does Sandbox.start ensure that the sandbox initialization is performed exactly once per session, and what could go wrong if the locking mechanism were omitted?",
+      "reasoning": "It probes the student's understanding of the concurrency design and potential race conditions.",
+      "file_ref": "backend/app/sandbox.py:start",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:39Z"
+    },
+    {
+      "speaker": "student",
+      "message": "I'm not sure about that part.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:49Z"
+    },
+    {
+      "speaker": "professor",
+      "message": "In Sandbox.start, how does the use of the _lock and the _started flag guarantee a single initialization, and what race condition would occur without them?",
+      "reasoning": "[no_answer] The student admitted not knowing; they gave no explanation of how the lock prevents multiple initializations. → Need to assess understanding of the concurrency guard.",
+      "file_ref": "backend/app/sandbox.py:start",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:34:50Z"
+    },
+    {
+      "speaker": "student",
+      "message": "I would add input validation there and handle the error explicitly instead of letting it fail silently.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:35:01Z"
+    },
+    {
+      "speaker": "professor",
+      "message": "In Sandbox.start, what exact condition is checked after acquiring _lock, and how does that prevent multiple initializations when two threads call start simultaneously?",
+      "reasoning": "[no_answer] The student did not explain the role of _lock and _started in Sandbox.start, nor the race condition avoided; they gave an unrelated comment about input validation. → The answer was non‑responsive, so we need a concrete follow‑up on the locking logic.",
+      "file_ref": "backend/app/sandbox.py:start",
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:35:02Z"
+    },
+    {
+      "speaker": "student",
+      "message": "That function returns early when the input is empty, otherwise it processes each item in order.",
+      "reasoning": "",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:35:14Z"
+    },
+    {
+      "speaker": "moderator",
+      "message": "That's the end of the viva. Thank you — your report is being prepared.",
+      "reasoning": "Question limit (12) reached. 12 questions answered, 0 cross-challenge(s).",
+      "file_ref": null,
+      "tool_used": null,
+      "timestamp": "2026-10-21T18:35:21Z"
+    }
+  ],
+  "questions": 12,
+  "questions_with_file": 12,
+  "cross_challenges": 0,
+  "tool_calls": [
+    {
+      "tool": "run_tests",
+      "speaker": "engineer",
+      "message": "That's testable. Let me run tests/test_api.py in the sandbox."
+    },
+    {
+      "tool": "run_tests",
+      "speaker": "system",
+      "message": "Sandbox: error — 0 passed, 0 failed (0.0s)"
+    },
+    {
+      "tool": "read_file",
+      "speaker": "engineer",
+      "message": "Let me look at backend/app/main.py."
+    },
+    {
+      "tool": "read_file",
+      "speaker": "system",
+      "message": "Read backend/app/main.py (272 lines)"
+    },
+    {
+      "tool": "search_code",
+      "speaker": "engineer",
+      "message": "Let me search the code for “@app.post(\"/session\"”."
+    },
+    {
+      "tool": "search_code",
+      "speaker": "system",
+      "message": "Search “@app.post(\"/session\"”: 1 match(es) — first: backend/app/main.py:135"
+    },
+    {
+      "tool": "read_file",
+      "speaker": "engineer",
+      "message": "Let me look at backend/app/main.py."
+    },
+    {
+      "tool": "read_file",
+      "speaker": "system",
+      "message": "Read backend/app/main.py (272 lines)"
+    },
+    {
+      "tool": "search_code",
+      "speaker": "engineer",
+      "message": "Let me search the code for “@app.post(\"/session\"”."
+    },
+    {
+      "tool": "search_code",
+      "speaker": "system",
+      "message": "Search “@app.post(\"/session\"”: 1 match(es) — first: backend/app/main.py:135"
+    },
+    {
+      "tool": "read_file",
+      "speaker": "engineer",
+      "message": "Let me look at backend/app/main.py."
+    },
+    {
+      "tool": "read_file",
+      "speaker": "system",
+      "message": "Read backend/app/main.py (272 lines)"
+    }
+  ],
+  "sandbox": "Sandbox: error — 0 passed, 0 failed (0.0s)",
+  "seconds": 534,
+  "ok": true,
+  "report": {
+    "repo_url": "https://github.com/goyalnishtha841/vivapanel",
+    "project": "vivapanel",
+    "overall_score": 16,
+    "readiness": "not_ready",
+    "headline": "The student shows limited concrete understanding of the core implementation details of their project.",
+    "topics": [
+      {
+        "topic": "Key file selection algorithm",
+        "examiner": "professor",
+        "file_ref": "backend/app/ingest.py:pick_key_files",
+        "confidence": 20,
+        "verdicts": [
+          "weak",
+          "weak",
+          "weak"
+        ],
+        "note": "The student could not articulate the attributes or weights used by pick_key_files.",
+        "evidence": [
+          {
+            "turn": 1,
+            "speaker": "professor",
+            "text": "Can you explain the criteria and weighting your pick_key_files implementation uses to rank files, and why you chose this heuristic over a simple language‑extension filter?"
+          },
+          {
+            "turn": 1,
+            "speaker": "student",
+            "text": "It works because I designed it carefully and tested it."
+          },
+          {
+            "turn": 2,
+            "speaker": "professor",
+            "text": "In pick_key_files, what specific file attributes are scored and how are their weights combined to produce the final ranking?"
+          }
+        ],
+        "own_work": null
+      },
+      {
+        "topic": "Sandbox lifecycle design",
+        "examiner": "professor",
+        "file_ref": "backend/app/sandbox.py:start",
+        "confidence": 0,
+        "verdicts": [
+          "no_answer",
+          "no_answer",
+          "no_answer"
+        ],
+        "note": "No explanation was given for the _lock and _started guard that ensures single initialization.",
+        "evidence": [
+          {
+            "turn": 10,
+            "speaker": "professor",
+            "text": "How does Sandbox.start ensure that the sandbox initialization is performed exactly once per session, and what could go wrong if the locking mechanism were omitted?"
+          },
+          {
+            "turn": 10,
+            "speaker": "student",
+            "text": "I'm not sure about that part."
+          },
+          {
+            "turn": 11,
+            "speaker": "professor",
+            "text": "In Sandbox.start, how does the use of the _lock and the _started flag guarantee a single initialization, and what race condition would occur without them?"
+          }
+        ],
+        "own_work": null
+      },
+      {
+        "topic": "Concurrent event emission safety",
+        "examiner": "engineer",
+        "file_ref": "backend/app/runner.py:_emit",
+        "confidence": 20,
+        "verdicts": [
+          "weak"
+        ],
+        "note": "The student admitted uncertainty; the code writes to a shared store without explicit synchronization.",
+        "evidence": [
+          {
+            "turn": 4,
+            "speaker": "engineer",
+            "text": "If two agents call _emit for the same session ID at the same time, can a race condition corrupt the event store, and how does your code prevent that?"
+          },
+          {
+            "turn": 4,
+            "speaker": "student",
+            "text": "I'm not sure about that part."
+          }
+        ],
+        "own_work": null
+      },
+      {
+        "topic": "GitHub token security handling",
+        "examiner": "engineer",
+        "file_ref": "backend/app/ingest.py:check_repo",
+        "confidence": null,
+        "verdicts": [],
+        "note": "The examiners did not reach this topic, so there is no evidence of understanding.",
+        "evidence": [],
+        "own_work": null
+      },
+      {
+        "topic": "End‑to‑end viva flow",
+        "examiner": "junior",
+        "file_ref": "frontend/src/lib/api.js:createSession",
+        "confidence": 20,
+        "verdicts": [
+          "weak",
+          "weak"
+        ],
+        "note": "Answers focused on input validation rather than the actual createSession workflow.",
+        "evidence": [
+          {
+            "turn": 5,
+            "speaker": "junior",
+            "text": "What happens step‑by‑step when the frontend calls createSession with a repo URL, and how does the backend use that to start a new viva session?"
+          },
+          {
+            "turn": 5,
+            "speaker": "student",
+            "text": "I would add input validation there and handle the error explicitly instead of letting it fail silently."
+          },
+          {
+            "turn": 6,
+            "speaker": "engineer",
+            "text": "Sandbox failed to run tests, so no evidence about the POST /session behavior was gathered. Can you describe how the /session endpoint validates input and constructs the response JSON?"
+          }
+        ],
+        "own_work": null
+      },
+      {
+        "topic": "Prompt selection per examiner",
+        "examiner": "junior",
+        "file_ref": "agents/prompts/professor.md",
+        "confidence": 20,
+        "verdicts": [
+          "weak",
+          "weak",
+          "weak"
+        ],
+        "note": "The student gave generic replies and did not identify the variable that selects the Professor prompt.",
+        "evidence": [
+          {
+            "turn": 7,
+            "speaker": "junior",
+            "text": "What does the code in agents/prompts/professor.md do to select a prompt for the Professor examiner, and which variables or configurations influence that choice?"
+          },
+          {
+            "turn": 7,
+            "speaker": "student",
+            "text": "It works because I designed it carefully and tested it."
+          },
+          {
+            "turn": 8,
+            "speaker": "junior",
+            "text": "What specific variable or configuration in agents/prompts/professor.md determines which Professor prompt is chosen when a question is posed?"
+          }
+        ],
+        "own_work": null
+      }
+    ],
+    "weak_spots": [
+      {
+        "title": "Sandbox init locking",
+        "file_ref": "backend/app/sandbox.py",
+        "why": "The student provided no explanation of how _lock and the _started flag prevent multiple initializations, contradicting the actual implementation.",
+        "evidence": [
+          {
+            "turn": 10,
+            "speaker": "professor",
+            "text": "How does Sandbox.start ensure that the sandbox initialization is performed exactly once per session, and what could go wrong if the locking mechanism were omitted?"
+          },
+          {
+            "turn": 10,
+            "speaker": "student",
+            "text": "I'm not sure about that part."
+          },
+          {
+            "turn": 11,
+            "speaker": "professor",
+            "text": "In Sandbox.start, how does the use of the _lock and the _started flag guarantee a single initialization, and what race condition would occur without them?"
+          },
+          {
+            "turn": 11,
+            "speaker": "student",
+            "text": "I would add input validation there and handle the error explicitly instead of letting it fail silently."
+          },
+          {
+            "turn": 12,
+            "speaker": "professor",
+            "text": "In Sandbox.start, what exact condition is checked after acquiring _lock, and how does that prevent multiple initializations when two threads call start simultaneously?"
+          },
+          {
+            "turn": 12,
+            "speaker": "student",
+            "text": "That function returns early when the input is empty, otherwise it processes each item in order."
+          }
+        ]
+      },
+      {
+        "title": "Key file ranking logic",
+        "file_ref": "backend/app/ingest.py",
+        "why": "Responses were generic and omitted the concrete file attributes and numeric weights that the function uses.",
+        "evidence": [
+          {
+            "turn": 1,
+            "speaker": "professor",
+            "text": "Can you explain the criteria and weighting your pick_key_files implementation uses to rank files, and why you chose this heuristic over a simple language‑extension filter?"
+          },
+          {
+            "turn": 1,
+            "speaker": "student",
+            "text": "It works because I designed it carefully and tested it."
+          },
+          {
+            "turn": 2,
+            "speaker": "professor",
+            "text": "In pick_key_files, what specific file attributes are scored and how are their weights combined to produce the final ranking?"
+          },
+          {
+            "turn": 2,
+            "speaker": "student",
+            "text": "I kept this part simple so it is easy to read; the trade-off is that it is less flexible if requirements change."
+          },
+          {
+            "turn": 3,
+            "speaker": "professor",
+            "text": "Which file properties does pick_key_files score (e.g., extension, path depth, keyword matches) and what numeric weights are assigned to each before summing?"
+          },
+          {
+            "turn": 3,
+            "speaker": "student",
+            "text": "My tests cover this case, and the whole test suite passes."
+          }
+        ]
+      },
+      {
+        "title": "Professor prompt variable",
+        "file_ref": "agents/prompts/professor.md",
+        "why": "The student did not name or explain the `professor_prompt` (or equivalent) variable that drives prompt selection.",
+        "evidence": [
+          {
+            "turn": 7,
+            "speaker": "junior",
+            "text": "What does the code in agents/prompts/professor.md do to select a prompt for the Professor examiner, and which variables or configurations influence that choice?"
+          },
+          {
+            "turn": 7,
+            "speaker": "student",
+            "text": "It works because I designed it carefully and tested it."
+          },
+          {
+            "turn": 8,
+            "speaker": "junior",
+            "text": "What specific variable or configuration in agents/prompts/professor.md determines which Professor prompt is chosen when a question is posed?"
+          },
+          {
+            "turn": 8,
+            "speaker": "student",
+            "text": "I kept this part simple so it is easy to read; the trade-off is that it is less flexible if requirements change."
+          },
+          {
+            "turn": 9,
+            "speaker": "junior",
+            "text": "Which variable inside agents/prompts/professor.md is used to pick the Professor’s prompt when a question is generated, and how is that variable set or overridden?"
+          },
+          {
+            "turn": 9,
+            "speaker": "student",
+            "text": "My tests cover this case, and the whole test suite passes."
+          }
+        ]
+      },
+      {
+        "title": "Session flow description",
+        "file_ref": "frontend/src/lib/api.js",
+        "why": "Answers only mentioned validation, missing the sequence of cloning, ingesting, runner start, and response construction.",
+        "evidence": [
+          {
+            "turn": 5,
+            "speaker": "junior",
+            "text": "What happens step‑by‑step when the frontend calls createSession with a repo URL, and how does the backend use that to start a new viva session?"
+          },
+          {
+            "turn": 5,
+            "speaker": "student",
+            "text": "I would add input validation there and handle the error explicitly instead of letting it fail silently."
+          },
+          {
+            "turn": 6,
+            "speaker": "engineer",
+            "text": "Sandbox failed to run tests, so no evidence about the POST /session behavior was gathered. Can you describe how the /session endpoint validates input and constructs the response JSON?"
+          },
+          {
+            "turn": 6,
+            "speaker": "student",
+            "text": "That function returns early when the input is empty, otherwise it processes each item in order."
+          }
+        ]
+      },
+      {
+        "title": "Event emission safety",
+        "file_ref": "backend/app/runner.py",
+        "why": "The student admitted uncertainty; the code lacks explicit synchronization, so a race condition could corrupt the event store.",
+        "evidence": [
+          {
+            "turn": 4,
+            "speaker": "engineer",
+            "text": "If two agents call _emit for the same session ID at the same time, can a race condition corrupt the event store, and how does your code prevent that?"
+          },
+          {
+            "turn": 4,
+            "speaker": "student",
+            "text": "I'm not sure about that part."
+          }
+        ]
+      }
+    ],
+    "unanswered": [
+      {
+        "turn": 10,
+        "examiner": "professor",
+        "question": "How does Sandbox.start ensure that the sandbox initialization is performed exactly once per session, and what could go wrong if the locking mechanism were omitted?",
+        "file_ref": "backend/app/sandbox.py:start",
+        "answer": "I'm not sure about that part."
+      },
+      {
+        "turn": 11,
+        "examiner": "professor",
+        "question": "In Sandbox.start, how does the use of the _lock and the _started flag guarantee a single initialization, and what race condition would occur without them?",
+        "file_ref": "backend/app/sandbox.py:start",
+        "answer": "I would add input validation there and handle the error explicitly instead of letting it fail silently."
+      },
+      {
+        "turn": 12,
+        "examiner": "professor",
+        "question": "In Sandbox.start, what exact condition is checked after acquiring _lock, and how does that prevent multiple initializations when two threads call start simultaneously?",
+        "file_ref": "backend/app/sandbox.py:start",
+        "answer": "That function returns early when the input is empty, otherwise it processes each item in order."
+      }
+    ],
+    "test_evidence": [
+      {
+        "turn": 5,
+        "claim": "The POST /session endpoint expects JSON with repo_url, student, invite and returns a session_id in the response body.",
+        "test_path": "tests/test_api.py",
+        "result": {
+          "status": "error",
+          "command": "pytest -q tests/test_api.py",
+          "passed": 0,
+          "failed": 0,
+          "errors": 0,
+          "skipped": 0,
+          "duration_s": 0.0,
+          "failing_tests": [],
+          "output_tail": "The sandbox couldn't install this project: DaytonaBadRequestError: Failed to create sandbox: This organization does not have a default region. Please open the Daytona Dashboard to set a default region."
+        },
+        "outcome": "inconclusive",
+        "explanation": "Sandbox failed to run tests, so no evidence about the POST /session behavior was gathered."
+      }
+    ],
+    "code_checks": [
+      {
+        "turn": 5,
+        "examiner": "engineer",
+        "tool": "run_tests",
+        "args": {
+          "test_path": "tests/test_api.py"
+        },
+        "summary": "Sandbox: error — 0 passed, 0 failed (0.0s)"
+      },
+      {
+        "turn": 5,
+        "examiner": "engineer",
+        "tool": "read_file",
+        "args": {
+          "path": "backend/app/main.py"
+        },
+        "summary": "Read backend/app/main.py (272 lines)"
+      },
+      {
+        "turn": 5,
+        "examiner": "engineer",
+        "tool": "search_code",
+        "args": {
+          "query": "@app.post(\"/session\""
+        },
+        "summary": "Search “@app.post(\"/session\"”: 1 match(es) — first: backend/app/main.py:135"
+      },
+      {
+        "turn": 6,
+        "examiner": "engineer",
+        "tool": "read_file",
+        "args": {
+          "path": "backend/app/main.py",
+          "start_line": 1
+        },
+        "summary": "Read backend/app/main.py (272 lines)"
+      },
+      {
+        "turn": 6,
+        "examiner": "engineer",
+        "tool": "search_code",
+        "args": {
+          "query": "@app.post(\"/session\""
+        },
+        "summary": "Search “@app.post(\"/session\"”: 1 match(es) — first: backend/app/main.py:135"
+      },
+      {
+        "turn": 6,
+        "examiner": "engineer",
+        "tool": "read_file",
+        "args": {
+          "path": "backend/app/main.py",
+          "start_line": 130
+        },
+        "summary": "Read backend/app/main.py (272 lines)"
+      }
+    ],
+    "study_plan": [
+      {
+        "title": "Sandbox start lock",
+        "action": "Read backend/app/sandbox.py, annotate the start method, then write a short explanation of how _lock and _started work together to guarantee a single init.",
+        "file_ref": "backend/app/sandbox.py",
+        "minutes": 45
+      },
+      {
+        "title": "Ingest file scoring",
+        "action": "Study backend/app/ingest.py pick_key_files, list each scored attribute and its weight, and create a small table summarising the ranking formula.",
+        "file_ref": "backend/app/ingest.py",
+        "minutes": 60
+      },
+      {
+        "title": "Professor prompt config",
+        "action": "Open agents/prompts/professor.md, locate the variable that selects the prompt (e.g., professor_prompt), and add a comment describing its source and override mechanism.",
+        "file_ref": "agents/prompts/professor.md",
+        "minutes": 30
+      },
+      {
+        "title": "CreateSession flow",
+        "action": "Trace the call chain from frontend/src/lib/api.js createSession through backend/app/main.py @app.post(\"/session\"), sketch a step‑by‑step diagram, and rehearse explaining it aloud.",
+        "file_ref": "frontend/src/lib/api.js",
+        "minutes": 50
+      },
+      {
+        "title": "_emit concurrency review",
+        "action": "Read backend/app/runner.py _emit, identify the lack of locking, prototype a thread‑safe version using a lock, and document the race condition it prevents.",
+        "file_ref": "backend/app/runner.py",
+        "minutes": 40
+      }
+    ],
+    "recruiter_summary": "The candidate could not explain the file‑selection heuristic in ingest.pick_key_files, the sandbox initialization locking, or the prompt‑selection variable for the Professor examiner. Their answers about the end‑to‑end session flow and concurrent event emission were also generic and lacked code‑level detail. The test suite runs but provides no evidence that the student grasped these critical components. Overall, they demonstrate familiarity with high‑level concepts but not the concrete mechanisms required for production‑grade work.",
+    "questions_asked": 12,
+    "previous": null,
+    "student": null,
+    "hiring": null,
+    "integrity": {
+      "answers": 12,
+      "pasted": 0,
+      "median_seconds": 20.0,
+      "fast_long_answers": 0
+    },
+    "skills": [],
+    "transcript": [],
+    "generated_at": "2026-10-21T18:35:54Z"
+  },
+  "score": 16,
+  "readiness": "not_ready"
+}
