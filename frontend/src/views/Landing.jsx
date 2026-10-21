@@ -7,7 +7,6 @@ import CodeLines from "../components/CodeLines.jsx";
 import RepoInput from "../components/RepoInput.jsx";
 import Avatar from "../components/Avatar.jsx";
 import Logo, { Mark } from "../components/Logo.jsx";
-import { Note, Underline } from "../components/RedPen.jsx";
 import { Reveal, Stagger, StaggerItem } from "../components/Motion.jsx";
 import { EXAMINERS, ORDER, TONE, VERDICT } from "../lib/examiners.js";
 import survive from "../mock/survive.json";
@@ -76,10 +75,6 @@ export default function Landing() {
               <br />
               <span className="relative inline-block font-serif text-[1.1em] font-normal italic tracking-normal text-brand [text-shadow:0_0_36px_rgb(var(--brand)/0.45)]">
                 your own code?
-                <Underline className="-bottom-3 left-0 h-6 w-full sm:-bottom-4" />
-                <Note className="absolute left-full -bottom-3 ml-1 hidden whitespace-nowrap text-[34px] not-italic lg:inline-block" rotate={-6} delay={1.5}>
-                  they will ask.
-                </Note>
               </span>
             </h1>
           </StaggerItem>

@@ -4,8 +4,8 @@ import Logo from "./Logo.jsx";
 import { Moon, Sun } from "./Icons.jsx";
 
 const LINKS = [
-  { href: "#try", label: "Try a question" },
-  { href: "#panel", label: "The panel" },
+  { href: "#try", label: "Try it" },
+  { href: "#panel", label: "Panel" },
   { href: "#how", label: "How it works" },
   { href: "#faq", label: "FAQ" },
 ];
@@ -85,11 +85,12 @@ export default function Nav({ theme, onToggleTheme }) {
           <Logo large />
         </button>
 
-        <nav className="hidden items-center rounded-full p-1 lg:flex" aria-label="Sections" onMouseLeave={() => setHover(null)}>
+        <div className="flex items-center gap-1">
+        <nav className="mr-2 hidden items-center lg:flex" aria-label="Sections" onMouseLeave={() => setHover(null)}>
           {LINKS.map((l) => (
             <a key={l.href} href={l.href} onClick={jump(l.href)} onMouseEnter={() => setHover(l.href)}
               aria-current={current === l.href ? "true" : undefined}
-              className={`relative rounded-full px-4 py-2 text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/60 ${current === l.href || hover === l.href ? "text-ink" : "text-muted"}`}>
+              className={`relative rounded-full px-3.5 py-2 text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand/60 ${current === l.href || hover === l.href ? "text-ink" : "text-muted"}`}>
               {lit === l.href && (
                 <motion.span layoutId="nav-pill" className="absolute inset-0 -z-10 rounded-full bg-ink/[0.07] ring-1 ring-ink/[0.06]"
                   transition={{ type: "spring", stiffness: 420, damping: 34 }} />
@@ -100,10 +101,10 @@ export default function Nav({ theme, onToggleTheme }) {
               )}
             </a>
           ))}
+          <a href="#/hire" className="relative rounded-full px-3.5 py-2 text-[15px] font-medium text-muted outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand/60">Recruiters</a>
         </nav>
-
+        <span className="mx-1 hidden h-6 w-px bg-line lg:block" aria-hidden="true" />
         <div className="flex items-center gap-2">
-          <a href="#/hire" className="hidden rounded-full px-3 py-2 text-[15px] font-medium text-muted transition-colors hover:text-ink md:inline">For recruiters</a>
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           <a href="#top" onClick={startViva}
             className="hidden rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] px-5 py-2.5 text-[15px] font-semibold text-white shadow-[0_0_24px_-6px_rgb(var(--brand)/0.8)] transition-shadow hover:shadow-[0_0_34px_-2px_rgb(var(--brand)/0.9)] sm:inline">
@@ -115,6 +116,7 @@ export default function Nav({ theme, onToggleTheme }) {
               {open ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
             </svg>
           </button>
+        </div>
         </div>
       </div>
 
@@ -128,7 +130,7 @@ export default function Nav({ theme, onToggleTheme }) {
                 {l.label}
               </a>
             ))}
-            <a href="#/hire" className="block rounded-[16px] px-4 py-3 text-[16px] font-medium text-ink hover:bg-ink/[0.06]">For recruiters</a>
+            <a href="#/hire" className="block rounded-[16px] px-4 py-3 text-[16px] font-medium text-ink hover:bg-ink/[0.06]">Recruiters</a>
             <a href="#top" onClick={startViva}
               className="mt-1 block rounded-[16px] bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] px-4 py-3 text-center text-[16px] font-semibold text-white sm:hidden">
               Start a viva
