@@ -19,7 +19,7 @@ flowchart LR
     end
 
     E <-->|read_file · search_code| REPO[(Read-only clone)]
-    E <-->|run_tests| BOX[[Sandbox: Docker or E2B<br/>no network · 768 MB · 1 CPU · 60 s]]
+    E <-->|run_tests| BOX[[Sandbox: Docker, Daytona or E2B<br/>no network · 768 MB · 1 CPU · 60 s]]
     PANEL -->|Events over SSE| UI[React UI<br/>speaker, reasoning, tool activity, voice]
     S <-->|answers: text / voice| UI
     PANEL -->|evidence| SC[Scoring agent]
@@ -154,7 +154,7 @@ validates those and attaches the exact quotes. The model cannot invent evidence.
 - **Student input is data, not instructions.** Answers are wrapped in « » and the prompts say so; a regex catches
   common injection phrasing, shows a visible guardrail event and caps the verdict.
 - **Repo content is data too.** The summary is labelled as material to examine, not instructions.
-- **Sandbox** (`backend/app/sandbox.py`): the student's pytest suite runs in a throwaway Docker container or E2B
+- **Sandbox** (`backend/app/sandbox.py`): the student's pytest suite runs in a throwaway Docker container, Daytona sandbox or E2B
   microVM, never on the server. A copy of the repo; 768 MB, 1 CPU, 256 processes, no Linux capabilities; internet only
   while installing dependencies, cut before any test runs; 60 s per run; none of our keys inside; removed after the
   viva. It's prepared in the background as soon as the repo is read, so the first test run doesn't wait for pip.

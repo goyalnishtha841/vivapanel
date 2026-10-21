@@ -6,5 +6,6 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 tiktoken>=0.7   # agents/profile_tokens.py
 google-genai>=1.0
-e2b>=2.0   # hosted test sandbox (optional; Docker works locally without it)
+e2b>=2.0   # hosted test sandbox, needs a card (optional; Docker works locally without it)
+daytona>=0.100   # hosted test sandbox, free credits and no card: set DAYTONA_API_KEY
 psycopg[binary]>=3.1   # Postgres when DATABASE_URL is set (Neon / Supabase); SQLite otherwise

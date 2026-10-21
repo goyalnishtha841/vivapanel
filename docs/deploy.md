@@ -41,8 +41,13 @@ throwaway sandbox (`backend/app/sandbox.py`): a copy of the repo, memory/CPU/pro
 installing dependencies and cut before any test runs, a 60 s limit per run, none of our keys inside, removed after
 the viva.
 
-- **On Render:** set `E2B_API_KEY` (e2b.dev, free tier) and the sandbox is a hosted microVM. Without it, real repos
-  are read and searched but not test-run; the sample project still shows test verification.
+- **On Render:** set `DAYTONA_API_KEY` (daytona.io: free credits, no card) and the sandbox is a hosted Daytona
+  sandbox. `E2B_API_KEY` works too but E2B asks for a card. Without either, real repos are read and searched but not
+  test-run; the sample project still shows test verification.
+
+  Getting a Daytona key: sign up at [app.daytona.io](https://app.daytona.io) → **Keys** → **Create key** (sandbox
+  permissions) → copy it → Render → your service → **Environment** → add `DAYTONA_API_KEY` → save (Render redeploys).
+  Then open `/health`: `"sandbox": {"backend": "daytona"}` means it's on.
 - **On a VM or locally:** Docker is used automatically if it's running (`VIVA_SANDBOX=docker` to force it).
 
 ### Checking the sandbox after a deploy
@@ -51,8 +56,8 @@ Open `https://<your-app>/health`. The `sandbox` field says what is live, without
 
 | `sandbox` shows | Meaning | Fix |
 |---|---|---|
-| `"backend": "e2b"` | Hosted sandbox is on | — |
-| `"backend": "off"` + `"problem"` | No sandbox: real repos aren't test-run | Set `E2B_API_KEY` in Render → Environment, then redeploy |
+| `"backend": "daytona"` or `"e2b"` | Hosted sandbox is on | — |
+| `"backend": "off"` + `"problem"` | No sandbox: real repos aren't test-run | Set `DAYTONA_API_KEY` in Render → Environment, then redeploy |
 | `"last_error": "..."` | A sandbox started but failed to set up (the same text as the `sandbox prepare failed:` log line) | Read the message; it's usually a dependency that won't install, or an invalid key |
 
 The setup step falls back to `virtualenv` when an image has no `python3-venv` (E2B's default image may not).

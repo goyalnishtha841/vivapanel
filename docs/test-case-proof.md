@@ -58,7 +58,17 @@ than in this file.
 
 The same flow on real public repos, through the deployed URL. Record every run, including the ones that fail.
 
-| # | Repo | Language / tests | Questions cite real files? | Sandbox ran? | Report generated? | Notes / what broke |
+One command does all five runs and the hiring-mode run, saves each as `docs/evidence/live-<date>-<repo>.json`, and
+prints this table filled in:
+
+```bash
+python scripts/live_check.py                        # default repos: markupsafe, itsdangerous, microblog, slugify, vivapanel
+python scripts/live_check.py --repos <url> <url> …  # or your own repos
+```
+
+Set `DAYTONA_API_KEY` on Render first, or the Sandbox column says "not triggered" for every real repo.
+
+| # | Repo | Panel | Questions cite real files? | Sandbox | Report | Time |
 |---|---|---|---|---|---|---|
 | 1 | | | | | | |
 | 2 | | | | | | |
@@ -78,4 +88,4 @@ The same flow on real public repos, through the deployed URL. Record every run, 
 | Edge cases, live | 7 / 7 handled: "repeat?", "idk", one word, empty, prompt injection, off-topic, pasted code | [`evidence/day4-eval.md`](evidence/day4-eval.md) |
 | Tool-using Engineer | Searched the repo and caught a false claim that a teardown hook closes connections | [`evidence/agentic-engineer.md`](evidence/agentic-engineer.md) |
 | Provider failover, live | Groq hit its limit mid-session; Gemini took over without the session stopping | [`evidence/live-edge-eval-gemini-fallback.json`](evidence/live-edge-eval-gemini-fallback.json) |
-| Automated tests | 122 tests (unit, panel rules, sandbox, API, hiring, team mode) on every push | `tests/`, `.github/workflows/ci.yml` |
+| Automated tests | 131 tests (unit, panel rules, sandbox, API, hiring, team mode) on every push | `tests/`, `.github/workflows/ci.yml` |

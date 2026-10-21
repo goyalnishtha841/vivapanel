@@ -9,8 +9,9 @@ that is thrown away afterwards:
 4. cut the network
 5. run tests on demand, each with a hard timeout; none of our keys or files are ever inside
 
-Backends: VIVA_SANDBOX=docker | e2b | off (default: e2b when E2B_API_KEY is set, else docker if it's running,
-else off, in which case real repos simply aren't test-run). Python and pytest only for now.
+Backends: VIVA_SANDBOX=docker | e2b | daytona | off (default: e2b when E2B_API_KEY is set, else daytona when
+DAYTONA_API_KEY is set, else docker if it's running, else off, in which case real repos simply aren't test-run).
+Python and pytest only for now.
 """
 from __future__ import annotations
 
@@ -235,6 +236,64 @@ class E2BSandbox(Sandbox):
                 pass
 
 
+class DaytonaSandbox(Sandbox):
+    """A hosted sandbox from daytona.io (free credits, no card), for hosts that can't run Docker.
+
+    Same steps as the others: create, upload the repo, install, cut the network, run tests on demand. The sandbox is
+    ephemeral and stops (and so deletes itself) after 30 idle minutes even if close() is never called.
+    """
+
+    def __init__(self, root: Path, files: list[str]):
+        super().__init__(root, files)
+        self.client = None
+        self.box = None
+        self.network_note: str | None = None
+
+    def _create(self) -> None:
+        from daytona import CreateSandboxFromSnapshotParams, Daytona, DaytonaConfig
+
+        self.client = Daytona(DaytonaConfig(api_key=os.environ["DAYTONA_API_KEY"],
+                                            api_url=os.getenv("DAYTONA_API_URL") or None))
+        self.box = self.client.create(
+            CreateSandboxFromSnapshotParams(language="python", ephemeral=True, auto_stop_interval=LIFETIME_S // 60,
+                                            labels={"app": "viva-panel"}),
+            timeout=120)
+        home = self.box.get_user_home_dir().rstrip("/")
+        self.work, self.venv = f"{home}/work", f"{home}/venv"
+        self.box.fs.upload_file(_tarball(self.root), "/tmp/repo.tgz")
+        self._exec(f"mkdir -p {self.work} && tar xzf /tmp/repo.tgz -C {self.work}", 120)
+
+    def _exec(self, script: str, timeout: int) -> None:
+        r = self.box.process.exec(f"sh -c {shlex.quote(script)}", timeout=timeout)
+        if r.exit_code:
+            raise RuntimeError((r.result or "").strip()[-300:] or f"exit code {r.exit_code}")
+
+    def _offline(self) -> None:
+        try:
+            self.box.update_network_settings(network_block_all=True)
+        except Exception as e:  # noqa: BLE001
+            # Daytona's lower tiers already restrict outbound traffic to package registries and may not allow
+            # changing the policy; tests still run, and the report notes it instead of failing the whole check.
+            self.network_note = f"network policy unchanged ({type(e).__name__}); Daytona's tier restrictions apply"
+            print(f"sandbox: {self.network_note}", flush=True)
+
+    def _run_tests(self, args: list[str]) -> tuple[str, int]:
+        try:
+            r = self.box.process.exec(shlex.join(args), cwd=self.work, env=self.env(), timeout=TEST_TIMEOUT_S + 20)
+            return r.result or "", int(r.exit_code)
+        except Exception as e:  # noqa: BLE001
+            if "timeout" in type(e).__name__.lower() or "timed out" in str(e).lower():
+                return f"timed out after {TEST_TIMEOUT_S}s", 124
+            raise
+
+    def close(self) -> None:
+        if self.client is not None and self.box is not None:
+            try:
+                self.client.delete(self.box)
+            except Exception:  # noqa: BLE001
+                pass
+
+
 # ---------- choosing a backend ----------
 
 _docker_ok: bool | None = None
@@ -247,6 +306,8 @@ def backend() -> str | None:
         return None
     if choice in ("e2b", "auto") and os.getenv("E2B_API_KEY"):
         return "e2b"
+    if choice in ("daytona", "auto") and os.getenv("DAYTONA_API_KEY"):
+        return "daytona"
     if choice in ("docker", "auto"):
         if _docker_ok is None:
             try:
@@ -262,15 +323,19 @@ def status() -> dict:
     """What the sandbox would use right now, for /health: lets you check a deploy without reading logs."""
     kind = backend()
     info: dict = {"backend": kind or "off", "image": IMAGE if kind == "docker" else None}
-    if os.getenv("VIVA_SANDBOX", "auto").lower() == "e2b" and not os.getenv("E2B_API_KEY"):
+    forced = os.getenv("VIVA_SANDBOX", "auto").lower()
+    if forced == "e2b" and not os.getenv("E2B_API_KEY"):
         info["problem"] = "VIVA_SANDBOX=e2b but E2B_API_KEY is not set"
+    elif forced == "daytona" and not os.getenv("DAYTONA_API_KEY"):
+        info["problem"] = "VIVA_SANDBOX=daytona but DAYTONA_API_KEY is not set"
     elif kind is None:
-        info["problem"] = "no sandbox: set E2B_API_KEY (hosts without Docker, e.g. Render) or run Docker"
-    elif kind == "e2b":
+        info["problem"] = ("no sandbox: set DAYTONA_API_KEY (free, no card) or E2B_API_KEY on hosts without Docker "
+                           "such as Render, or run Docker")
+    elif kind in ("e2b", "daytona"):
         try:
-            import e2b  # noqa: F401
+            __import__(kind)
         except ImportError:
-            info["problem"] = "E2B_API_KEY is set but the e2b package is not installed (pip install e2b)"
+            info["problem"] = f"{kind.upper()}_API_KEY is set but the {kind} package is not installed (pip install {kind})"
     if LAST_ERROR:
         info["last_error"] = LAST_ERROR
     return info
@@ -284,4 +349,4 @@ def make(root: Path, files: list[str], test_command: str | None) -> Sandbox | No
     if test_command != "pytest -q" or not root.exists():
         return None
     kind = backend()
-    return {"docker": DockerSandbox, "e2b": E2BSandbox}[kind](root, files) if kind else None
+    return {"docker": DockerSandbox, "e2b": E2BSandbox, "daytona": DaytonaSandbox}[kind](root, files) if kind else None

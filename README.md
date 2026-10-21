@@ -107,7 +107,7 @@ references and copies the quotes itself, so the model can't invent evidence.
 | Hiring mode | ✅ Full flow verified with offline agents in the browser; a live-model run is next |
 | Real GitHub repos | ✅ Clone, key-file selection, summary and questions verified live (e.g. `pallets/markupsafe`); 5-repo study in progress |
 | Token use | ✅ ~53k input tokens per session, cut 35% and measured |
-| Tests and CI | ✅ 122 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
+| Tests and CI | ✅ 131 tests (unit, panel rules, retake, team mode, API), lint, offline evals, frontend build and Docker smoke test on every push (GitHub Actions) |
 | Test sandbox for real repos | ✅ Locally: the student's pytest suite runs in a throwaway Docker container (no network while testing, resource and time limits), verified on `pallets/markupsafe`. 🚧 On Render: a hosted sandbox key is being set up by the team (E2B, or a free alternative such as Daytona); until then the live site reads and searches real repos, and the sample project shows test verification |
 | Voice | ✅ Browser speech in Chrome; not yet tested on every browser |
 
@@ -191,7 +191,7 @@ Full design, diagrams and trade-offs: **[docs/architecture.md](docs/architecture
 | LLMs | Groq `gpt-oss-120b` / `gpt-oss-20b`, Gemini flash as backup, Claude supported | Sub-second calls and a free tier; a second provider so a demo never stops; one setting to switch |
 | Backend | FastAPI, server-sent events | Streams agent turns as they happen; SSE is one-way, which is all the panel needs, and reconnects on its own |
 | Storage | SQLite (WAL) | One file, zero setup; sessions, an ordered event log and interview links are all we store |
-| Code isolation | Docker locally, a hosted sandbox (E2B or Daytona) on Render | Student code must never run on our server |
+| Code isolation | Docker locally, a hosted Daytona (or E2B) sandbox on Render | Student code must never run on our server |
 | Frontend | React 18, Vite, Tailwind, framer-motion | Fast iteration; the stage, scorecard and report are all components |
 | Deploy | One Docker image on Render | FastAPI also serves the built app, so there's one URL and no CORS |
 
@@ -272,8 +272,9 @@ All settings come from `.env` (see [.env.example](.env.example)).
 | `GEMINI_API_KEY` | — | Turns on the Gemini backup automatically |
 | `ANTHROPIC_API_KEY` | — | For Claude |
 | `GITHUB_TOKEN` | — | Optional; raises GitHub's repo-check limit from 60 to 5,000 an hour |
-| `E2B_API_KEY` | — | Hosted test sandbox for real repos (Render can't run Docker) |
-| `VIVA_SANDBOX` | `auto` | `auto` (E2B if keyed, else Docker if running), `docker`, `e2b` or `off` |
+| `DAYTONA_API_KEY` | — | Hosted test sandbox for real repos on hosts without Docker, like Render (free credits, no card) |
+| `E2B_API_KEY` | — | Alternative hosted sandbox (needs a card) |
+| `VIVA_SANDBOX` | `auto` | `auto` (E2B if keyed, else Daytona if keyed, else Docker if running), `docker`, `e2b`, `daytona` or `off` |
 | `VIVA_DAILY_SESSIONS` | `40` | New vivas allowed per rolling 24 h on a public deploy (0 = no cap) |
 | `VIVA_DAILY_PER_VISITOR` | `6` | The same, per visitor (salted hash of the IP; interview links exempt) |
 | `DATABASE_URL` | — | Postgres (Neon / Supabase) so sessions and report links survive restarts; empty = SQLite |
@@ -304,6 +305,11 @@ Full contract, including the event and report shapes: [docs/api-contract.md](doc
 ---
 
 ## Tests and evals
+
+**Live check of a deployed site:** `python scripts/live_check.py` runs full vivas on five real repos and one
+hiring-mode viva against the live URL, saves every transcript and report to `docs/evidence/`, and prints the results
+table for [docs/test-case-proof.md](docs/test-case-proof.md).
+
 
 **Tests** pin down everything the architecture says code guarantees. They run offline in about a second:
 
@@ -388,7 +394,8 @@ Add `VIVA_OFFLINE=1` to run without a key. Results and saved runs are in [docs/e
 
 **Next**
 
-- [ ] Hosted sandbox key on Render (E2B or Daytona)
+- [x] Daytona sandbox backend (free, no card) alongside Docker and E2B
+- [ ] Daytona key set on Render and verified with a real repo
 - [ ] Results from 5 real student repos
 - [ ] A teacher view for a whole batch
 - [ ] Calibrate scores against real faculty viva marks

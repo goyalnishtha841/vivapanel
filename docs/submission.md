@@ -68,6 +68,6 @@ Input: sample repo campus-library-api, scripted student answers (one vague, one 
 Expected: topics split without overlap; questions cite real files; weak answer challenged; examiner-to-examiner challenge; Engineer runs tests on a claim; report with weak spots, evidence, study plan.
 Actual (Groq, 20 Oct 2026): all expected steps happened. 12 questions, every one citing a real file (0 invalid references); the vague answer was judged weak and followed up; 2 cross-challenges; the student's claim "my tests cover double-borrowing" made the Engineer run tests/test_loans.py (2 passed), read the test and rule the claim inconclusive, because the test doesn't send concurrent requests; report 26/100 with 6 topics, quoted weak spots, test evidence and a study plan.
 Differences, explained: (1) the sample project's test output is recorded for speed; for real repos the same tool runs the student's own pytest suite in the sandbox (verified locally on pallets/markupsafe: 12 passed, network blocked). (2) Voice runs in the browser, so it's shown in the video, not the log. (3) Answers were scripted for repeatability.
-Also: edge cases 7/7 live (repeat, idk, one word, empty, prompt injection, off-topic, pasted code); live Groq-to-Gemini failover; 122 automated tests in CI.
+Also: edge cases 7/7 live (repeat, idk, one word, empty, prompt injection, off-topic, pasted code); live Groq-to-Gemini failover; 131 automated tests in CI.
 
 Full labelled run with evidence files: https://github.com/goyalnishtha841/vivapanel/blob/main/docs/test-case-proof.md
