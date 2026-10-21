@@ -28,7 +28,7 @@ def test_health(client):
     r = client.get("/health")
     body = r.json()
     assert r.status_code == 200 and body["status"] == "ok" and body["llm"] == "offline"
-    assert body["sandbox"]["backend"] in ("off", "docker", "e2b")  # deploy check: which test sandbox is live
+    assert body["sandbox"]["backend"] in ("off", "docker", "e2b", "daytona")  # deploy check: which test sandbox is live
 
 
 def test_full_viva_over_http(client):

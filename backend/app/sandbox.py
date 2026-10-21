@@ -37,11 +37,14 @@ IMAGE = os.getenv("VIVA_SANDBOX_IMAGE", "python:3.12-slim")
 SKIP = {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".tox", ".mypy_cache"}
 MAX_UPLOAD_BYTES = 40_000_000
 
+# Pin Python 3.12 with uv when the box has it: Daytona's default image runs 3.14, where common pinned packages
+# (pandas 2.2, say) have no wheels, so pip compiles them from source and the 1 GB box is killed out of memory.
 # Some images (E2B's default one included) ship python3 without the venv module ("ensurepip is not available"),
 # so fall back to virtualenv from PyPI before giving up.
+PYTHON = os.getenv("VIVA_SANDBOX_PYTHON", "3.12")
 INSTALL = (
     "set -e; "
-    "(python3 -m venv {venv} 2>/dev/null || "
+    "((command -v uv >/dev/null && uv venv -q --seed -p " + PYTHON + " {venv}) || python3 -m venv {venv} 2>/dev/null || "
     " (python3 -m pip install -q --user --disable-pip-version-check virtualenv && python3 -m virtualenv -q {venv})) && "
     ". {venv}/bin/activate && cd {work} && "
     "pip install -q --disable-pip-version-check pytest && "
@@ -111,6 +114,8 @@ class Sandbox:
         except Exception as e:  # noqa: BLE001 - any failure just means tests can't run this session
             global LAST_ERROR
             self.error = f"{type(e).__name__}: {str(e)[:300]}"
+            if "Killed" in str(e):
+                self.error += " (the box ran out of memory installing the project's dependencies)"
             LAST_ERROR = f"{type(self).__name__}: {self.error}"
             print(f"sandbox prepare failed: {self.error}", flush=True)
         finally:
