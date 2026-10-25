@@ -442,7 +442,8 @@ function FirstVivaTips({ onClose }) {
   const tips = [
     canListen ? ["🎙️", "Type your answer, or tap the mic and speak it."] : ["⌨️", "Type your answer in the box below."],
     ["↵", "Enter sends. Shift + Enter starts a new line."],
-    ["🔁", "Question unclear? Tap Repeat? and it's asked again, without counting against you."],
+    ["🔁", "Question unclear? Tap Repeat? as many times as you need — it's asked again, without counting against you."],
+    ["⏭️", "Stuck? Tap Skip → to move on to the next question instead."],
     canSpeak && ["🔊", "Turn on the speaker to hear each examiner in their own voice, or try Hands-free."],
     ["📄", "Code & transcript shows the exact file the panel is asking about."],
   ].filter(Boolean);
@@ -547,9 +548,17 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
 
   const repeat = () => submit("Can you repeat the question?");
 
+  function skip() {
+    if (!enabled) return;
+    stopMic();
+    onSend("(skipped)", { skip: true, seconds: Math.round((Date.now() - shownAt.current) / 100) / 10, pasted: false });
+    setText("");
+    textRef.current = "";
+  }
+
   return (
     <div className="shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] pt-1 sm:pb-5 sm:pt-2">
-      {/* small controls row: hands-free on the left, Repeat? on phones on the right */}
+      {/* small controls row: hands-free on the left, Repeat?/Skip on phones on the right */}
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
           {canListen ? (
             <button onClick={onToggleHandsFree} aria-pressed={handsFree}
@@ -567,9 +576,13 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
                 {handsFree ? "Listening… pause to send" : "Listening…"}
               </span>
             )}
-            <button onClick={repeat} disabled={!enabled}
+            <button onClick={repeat} disabled={!enabled} title="Ask the panel to say the question again — doesn't count against you, and you can ask again as many times as you need"
               className="rounded-full px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:hidden">
               Repeat?
+            </button>
+            <button onClick={skip} disabled={!enabled} title="Move on to the next question without answering this one"
+              className="rounded-full px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:hidden">
+              Skip →
             </button>
           </span>
       </div>
@@ -598,9 +611,13 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
           aria-label="Your answer"
           className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 text-[16px] leading-relaxed placeholder:text-muted focus:outline-none sm:min-h-[48px] sm:py-3 sm:text-[17px]"
         />
-        <button onClick={repeat} disabled={!enabled}
+        <button onClick={repeat} disabled={!enabled} title="Ask the panel to say the question again — doesn't count against you, and you can ask again as many times as you need"
           className="hidden h-12 shrink-0 rounded-full px-4 text-[14px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:block">
           Repeat?
+        </button>
+        <button onClick={skip} disabled={!enabled} title="Move on to the next question without answering this one"
+          className="hidden h-12 shrink-0 rounded-full px-4 text-[14px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:block">
+          Skip →
         </button>
         <button onClick={() => submit()} disabled={!enabled || !text.trim()} aria-label="Send answer"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] text-white transition-opacity disabled:opacity-30 sm:h-12 sm:w-12">

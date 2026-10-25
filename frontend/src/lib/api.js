@@ -93,7 +93,10 @@ const live = {
     await json(await fetch(`${BASE}/answer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: id, answer, seconds: meta.seconds ?? null, pasted: meta.pasted ?? null }),
+      body: JSON.stringify({
+        session_id: id, answer, seconds: meta.seconds ?? null, pasted: meta.pasted ?? null,
+        skip: meta.skip ?? false,
+      }),
     }));
   },
   async getReport(id) {

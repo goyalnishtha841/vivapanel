@@ -133,6 +133,7 @@ function Body({ r, id }) {
             <Chip>{reached.length} of {r.topics.length} topics reached</Chip>
             <Chip>{r.test_evidence.length} claim{r.test_evidence.length === 1 ? "" : "s"} tested</Chip>
             <Chip>{r.unanswered.length} unanswered</Chip>
+            {r.skipped_count > 0 && <Chip>{r.skipped_count} skipped</Chip>}
             {r.student && <Chip>Team project · @{r.student.login} · {r.student.commits} of {r.student.team_commits} commits</Chip>}
           </div>
           {MODE === "live" && reached.length > 0 && <Retake id={id} />}
@@ -204,7 +205,11 @@ function Body({ r, id }) {
           </Card>
 
           {/* ------------------------------------------------ tests */}
-          <Card title="What the tests showed" tone="neon-teal">
+          <Card title="What the tests showed" tone="neon-teal"
+            note={r.baseline_tests ? `Baseline, run before any question was asked: ${r.baseline_tests.status} — `
+              + `${r.baseline_tests.passed} passed, ${r.baseline_tests.failed} failed (${r.baseline_tests.duration_s}s)`
+              + (r.baseline_tests.failing_tests.length ? ` — failing: ${r.baseline_tests.failing_tests.join(", ")}` : "")
+              : undefined}>
             {r.test_evidence.length === 0 ? (
               <p className="text-[15px] text-muted">No claims were checked against the tests in this session.</p>
             ) : (
@@ -245,6 +250,7 @@ function Body({ r, id }) {
 
           {/* ------------------------------------------------ unanswered */}
           <Card title="Questions you didn't answer">
+            {r.skipped_count > 0 && <SkippedByDifficulty r={r} />}
             {r.unanswered.length === 0 ? (
               <p className="text-[15px] text-muted">None. Every question got a real attempt.</p>
             ) : (
@@ -266,6 +272,7 @@ function Body({ r, id }) {
         {/* ------------------------------------------------ right column */}
         <div className="space-y-8">
           <StudyPlan steps={r.study_plan} />
+          {r.interview_tips?.length > 0 && <InterviewTips tips={r.interview_tips} />}
           <Recruiter text={r.recruiter_summary} />
         </div>
       </div>
@@ -277,6 +284,20 @@ export { Card, Chip, Evidence, ScoreRing };
 
 function Chip({ children }) {
   return <span className="rounded-full border border-line bg-bg/50 px-3 py-1">{children}</span>;
+}
+
+const DIFFICULTY_LABEL = { fundamentals: "Fundamentals", intermediate: "Design", advanced: "Advanced" };
+
+/** How many skipped questions were at each difficulty — "junior" opens fundamentals, "engineer" closes advanced. */
+function SkippedByDifficulty({ r }) {
+  const by = r.skipped_by_difficulty || {};
+  const levels = ["fundamentals", "intermediate", "advanced"].filter((k) => by[k] > 0);
+  if (levels.length === 0) return null;
+  return (
+    <p className="mb-4 text-[14px] text-muted">
+      Skipped {r.skipped_count} question{r.skipped_count === 1 ? "" : "s"}: {levels.map((k) => `${by[k]} ${DIFFICULTY_LABEL[k].toLowerCase()}`).join(", ")}.
+    </p>
+  );
 }
 
 function Card({ title, note, children, tone = "neon-quiet" }) {
@@ -365,6 +386,23 @@ function StudyPlan({ steps }) {
           })}
         </ol>
       </section>
+  );
+}
+
+function InterviewTips({ tips }) {
+  return (
+    <section className="neon neon-gold avoid-break rounded-[22px] p-6">
+      <h2 className="text-[19px] font-bold">Tips for your next interview</h2>
+      <p className="mt-1 text-[14px] text-muted">General advice, not just about this repo — based on how you answered here.</p>
+      <ul className="mt-4 space-y-2.5">
+        {tips.map((t, i) => (
+          <li key={i} className="flex gap-2.5 text-[15px] leading-relaxed">
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden="true" />
+            <span>{t}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

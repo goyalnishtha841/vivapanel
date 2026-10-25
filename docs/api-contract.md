@@ -11,7 +11,7 @@ The Python versions of these shapes live in `agents/schemas.py` — import them,
 | Method | Path | Body | Returns |
 |---|---|---|---|
 | `POST` | `/session` | `{"repo_url": "https://github.com/owner/name"}`, or `{"retake_of": "<finished session id>"}` for a retake | `{"session_id": "abc123"}` |
-| `POST` | `/answer` | `{"session_id": "abc123", "answer": "student's reply"}` | `{"ok": true}` |
+| `POST` | `/answer` | `{"session_id": "abc123", "answer": "student's reply"}`, or `{"session_id": "abc123", "skip": true}` to move to the next question without answering | `{"ok": true}` |
 | `GET` | `/stream/{id}` | — | Server-sent events, one `data:` line per **Event** (below) |
 | `GET` | `/report/{id}` | — | **Report** JSON (section 6) |
 | `GET` | `/health` | — | `{"status": "ok"}` |
@@ -31,7 +31,10 @@ Hiring mode: `POST /invites {title, company, focus[]}` → `{token, key}`. `GET 
 focus, used, session_id}`. `POST /session` with `"invite": token` starts the screening (409 `invite_used` after the
 first). `GET /screening/{token}?key=…` → `{role, status, repo_url, report}`; the report adds `hiring`, `skills: [{skill,
 score, topics}]`, `integrity: {answers, pasted, median_seconds, fast_long_answers}` and `transcript`. `GET /report/{id}`
-returns 403 `shared_with_recruiter` for screening sessions. `POST /answer` accepts optional `seconds` and `pasted`.
+returns 403 `shared_with_recruiter` for screening sessions. `POST /answer` accepts optional `seconds` and `pasted`,
+plus `skip` (bool): "Next question" — closes the current topic as `no_answer` without grading anything, counted
+separately from wrong/empty answers in the report. Asking the panel to repeat the question ("Can you repeat the
+question?") is unlimited and never counts against the student or advances the viva.
 
 `GET /session/{id}` also returns `max_questions` (12, fewer on a retake) and `retake_of`. A retake's report has
 `previous: {session_id, overall_score, topics: {title: confidence}}` so the UI can show progress.
@@ -132,6 +135,10 @@ Defined as `Report` in `agents/schemas.py`. Example: `docs/evidence/2026-10-20-g
 | `code_checks[]` | `{turn, examiner, tool, args, summary}`: every tool call the Engineer made |
 | `study_plan[]` | `{title, action, file_ref, minutes}` |
 | `recruiter_summary` | 3–4 sentences |
+| `skipped_count` | how many questions the student skipped with "Next question" |
+| `skipped_by_difficulty` | `{"fundamentals", "intermediate", "advanced"} -> count` — the asking examiner's lane (junior/professor/engineer) |
+| `interview_tips[]` | 3–5 plain-language, general tips for the student's *next* interview (not repo-specific — that's `study_plan`) |
+| `baseline_tests` | `RunTestsResult \| null` — the project's own tests, run once before any question was asked, so weak spots can cite it as ground truth |
 
 `Quote` = `{turn, speaker, text}`.
 
