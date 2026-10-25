@@ -19,7 +19,7 @@ from collections.abc import Iterator
 
 from pydantic import BaseModel
 
-from .examiner import DISPLAY, Examiner
+from .examiner import DIFFICULTY, DISPLAY, Examiner
 from .guardrails import ANSWER_NOTES, clip_answer, classify_answer
 from .llm import LLMError
 from .moderator import ORDER, Moderator
@@ -31,6 +31,9 @@ from . import llm
 from .tools import TestRunner
 
 MAX_QUESTIONS = 12      # ~5 minute session
+WARMUP_TOPIC = "Project overview"  # the icebreaker's topic name: real interviews start broad, not with a pop quiz
+WARMUP_QUESTION = ("Before we get into specifics — what features have you built in this project? Pick one you're "
+                   "proud of, and we'll start there.")
 MAX_CHALLENGES = 2      # cross-examiner interjections per session
 MAX_TEST_RUNS = 1       # sandbox verifications per session (each can take up to a minute)
 RETAKE_QUESTIONS_PER_TOPIC = 3  # an opener and up to two follow-ups
@@ -48,6 +51,8 @@ class PanelState(BaseModel):
     tool_calls: list[ToolRecord] = []
     done: bool = False
     max_questions: int = MAX_QUESTIONS
+    baseline_tests: RunTestsResult | None = None  # the project's own test suite, run once as soon as the sandbox
+    # is ready, so later questions can cite what's actually verified instead of guessing
     # retake only: the attempt it builds on, and last time's questions per topic (not to be asked again)
     previous: PreviousAttempt | None = None
     avoid_questions: dict[str, list[str]] = {}
@@ -56,12 +61,16 @@ class PanelState(BaseModel):
 
 class Panel:
     def __init__(self, summary: ProjectSummary, examiners: tuple[Role, ...] = ORDER, state: PanelState | None = None,
-                 run_tests: TestRunner | None = None, repo_tools=None):
+                 run_tests: TestRunner | None = None, repo_tools=None, baseline_ready=None):
         """repo_tools: an object with read_file(path, start_line=1) and search_code(query) — e.g. LocalRepoTools.
-        When given, the Engineer becomes a tool-using agent (reads/searches the code, picks which tests to run)."""
+        When given, the Engineer becomes a tool-using agent (reads/searches the code, picks which tests to run).
+        baseline_ready: () -> bool, non-blocking — True once the sandbox has finished installing (see sandbox.py's
+        Sandbox.ready_now). Polled, never awaited, so it can't stall a question; once True, the whole test suite
+        is run once and the result is offered to examiners as grounding for their next question."""
         self.summary = summary
         self.run_tests = run_tests
         self.repo_tools = repo_tools
+        self.baseline_ready = baseline_ready
         self.state = state or PanelState(examiners=list(examiners))
         roles = tuple(self.state.examiners)
         self.moderator = Moderator(summary, roles)
@@ -74,12 +83,13 @@ class Panel:
 
     @classmethod
     def from_json(cls, summary: ProjectSummary, data: str, run_tests: TestRunner | None = None,
-                  repo_tools=None) -> "Panel":
-        return cls(summary, state=PanelState.model_validate_json(data), run_tests=run_tests, repo_tools=repo_tools)
+                  repo_tools=None, baseline_ready=None) -> "Panel":
+        return cls(summary, state=PanelState.model_validate_json(data), run_tests=run_tests, repo_tools=repo_tools,
+                  baseline_ready=baseline_ready)
 
     @classmethod
     def retake(cls, summary: ProjectSummary, previous_session: str, report: Report, previous: PanelState,
-               run_tests: TestRunner | None = None, repo_tools=None) -> "Panel":
+               run_tests: TestRunner | None = None, repo_tools=None, baseline_ready=None) -> "Panel":
         """A shorter viva on the topics the student found hardest last time. The plan comes from code, not the model:
         it is built from the previous report's scores, so it can't drift to topics the student already handled."""
         moderator = Moderator(summary, tuple(previous.examiners))
@@ -92,7 +102,7 @@ class Panel:
                                      topics={t.topic: t.confidence for t in report.topics}),
             avoid_questions={t.title: [p.question for p in previous.transcript if p.topic == t.title] for t in plan.topics},
         )
-        return cls(summary, state=state, run_tests=run_tests, repo_tools=repo_tools)
+        return cls(summary, state=state, run_tests=run_tests, repo_tools=repo_tools, baseline_ready=baseline_ready)
 
     @property
     def done(self) -> bool:
@@ -114,6 +124,13 @@ class Panel:
         plan = self.state.plan
         message, reasoning = self.moderator.plan_announcement(plan, retake=self.state.previous)
         yield Event(speaker="moderator", message=message, reasoning=reasoning)
+        yield from self._maybe_capture_baseline()
+
+        # A real interview opens broad ("tell me about the project"), not with the hardest question in the
+        # file. Skip it on a retake — that session is already short and focused on named weak spots.
+        if not self.state.previous and "junior" in self.examiners:
+            yield self._warmup()
+            return
 
         first = self.moderator.next_speaker(None, self.state.queues)
         if first is None:
@@ -121,20 +138,61 @@ class Panel:
             return
         yield from self._open(first)
 
-    def answer(self, text: str, seconds: float | None = None, pasted: bool | None = None) -> Iterator[Event]:
+    def _warmup(self) -> Event:
+        self.state.transcript.append(Turn(examiner="junior", kind="open", topic=WARMUP_TOPIC, file_ref=None,
+                                          question=WARMUP_QUESTION, difficulty="fundamentals"))
+        return Event(speaker="junior", message=WARMUP_QUESTION,
+                    reasoning="Warm-up: letting the student choose where to start, like a real interview opener. "
+                              "Not graded — the next question picks up on whatever they describe.")
+
+    def answer(self, text: str, seconds: float | None = None, pasted: bool | None = None,
+               skip: bool = False) -> Iterator[Event]:
         if not self.awaiting_answer:
             yield Event(speaker="system", message="No question is waiting for an answer.")
             return
         st = self.state
         turn = st.transcript[-1]
+
+        if turn.topic == WARMUP_TOPIC:
+            yield from self._answer_warmup(turn, text, seconds, pasted, skip)
+            return
+
+        # The student chose "Next question" instead of answering: close this topic, ungraded reasoning
+        # aside, and hand the floor on immediately. Kept apart from "I don't know" so the report can
+        # count skips separately from wrong answers.
+        if skip:
+            turn.answer = "(skipped)"
+            turn.seconds, turn.pasted, turn.skipped = seconds, pasted, True
+            turn.verdict, turn.judgement = "no_answer", "Student skipped this question."
+            yield Event(speaker="student", message="(Skipped this question.)")
+            st.assessments.append(Assessment(
+                examiner=turn.examiner, topic=turn.topic, file_ref=turn.file_ref, question=turn.question,
+                answer=turn.answer, verdict="no_answer", judgement=turn.judgement,
+            ))
+            if len(st.transcript) >= st.max_questions:
+                yield from self._finish(f"Question limit ({st.max_questions}) reached.")
+                return
+            nxt = self.moderator.next_speaker(turn.examiner, st.queues)
+            if nxt is None:
+                yield from self._finish("All planned topics covered.")
+                return
+            yield Event(
+                speaker="moderator", message=f"{DISPLAY[nxt]}, over to you.",
+                reasoning=f"{DISPLAY[turn.examiner]} judged the last answer no_answer: {turn.judgement} "
+                          f"Topic closed; {DISPLAY[nxt]} has {len(st.queues[nxt])} topic(s) left.",
+            )
+            yield from self._open(nxt)
+            return
+
         turn.answer = text.strip()
         turn.seconds, turn.pasted = seconds, pasted
         yield Event(speaker="student", message=turn.answer)
         kind = classify_answer(turn.answer)
         asker = self.examiners[turn.examiner]
 
-        # 0. "Can you repeat that?" — re-ask more simply, ungraded, once per question.
-        if kind == "clarify" and turn.kind != "rephrase" and len(st.transcript) < st.max_questions:
+        # 0. "Can you repeat that?" — re-ask more simply, ungraded. No limit: the student can ask as
+        # many times as they need, and it never counts against them or advances the viva.
+        if kind == "clarify" and len(st.transcript) < st.max_questions:
             try:
                 q = asker.rephrase(st.transcript)
             except LLMError:
@@ -301,16 +359,65 @@ class Panel:
 
     # ---------- helpers ----------
 
+    def _maybe_capture_baseline(self) -> Iterator[Event]:
+        """Non-blocking readiness check: once the sandbox is actually ready, run the project's own tests once
+        so later questions can cite what's verified instead of guessing. Never waits — skips silently otherwise."""
+        st = self.state
+        if not (st.baseline_tests is None and self.run_tests is not None and self.baseline_ready is not None
+                and self.baseline_ready() and "engineer" in self.examiners):
+            return
+        yield Event(speaker="engineer", message="Before we start, let me run the project's own tests in the sandbox.",
+                   reasoning="Baseline run so later questions can cite what's actually verified.", tool_used="run_tests")
+        try:
+            st.baseline_tests = self.run_tests(None)
+        except Exception:  # noqa: BLE001 - grounding is a nice-to-have, never worth failing a turn over
+            return
+        yield self._tool_result_event("run_tests", {"test_path": ""}, st.baseline_tests.model_dump())
+
+    def _answer_warmup(self, turn: Turn, text: str, seconds: float | None, pasted: bool | None,
+                       skip: bool) -> Iterator[Event]:
+        """The icebreaker is never graded — it exists so the student starts talking before anyone probes
+        them. Repeating it is still free; skipping it just moves straight to the planned topics. Either
+        way, whatever they describe stays in the transcript, so the first real question can build on it."""
+        st = self.state
+        if skip:
+            turn.answer, turn.seconds, turn.pasted = "(skipped)", seconds, pasted
+            turn.verdict, turn.judgement = "not_applicable", "Warm-up skipped."
+            yield Event(speaker="student", message="(Skipped this question.)")
+        else:
+            turn.answer = text.strip()
+            turn.seconds, turn.pasted = seconds, pasted
+            yield Event(speaker="student", message=turn.answer)
+            if classify_answer(turn.answer) == "clarify" and len(st.transcript) < st.max_questions:
+                try:
+                    q = self.examiners["junior"].rephrase(st.transcript)
+                except LLMError:
+                    turn.answer = turn.seconds = turn.pasted = None
+                    raise
+                turn.verdict, turn.judgement = "not_applicable", "Student asked for clarification."
+                yield self._ask("junior", "rephrase", WARMUP_TOPIC, None, q.question,
+                                "Warm-up rephrase, not graded.")
+                return
+            turn.verdict, turn.judgement = "not_applicable", "Warm-up; not graded."
+        first = self.moderator.next_speaker(None, st.queues)
+        if first is None:
+            yield from self._finish("No topics could be planned for this repository.")
+            return
+        yield from self._open(first)
+
     def _open(self, role: Role) -> Iterator[Event]:
+        yield from self._maybe_capture_baseline()
         topic = self.state.queues[role][0]
         q = self.examiners[role].open_topic(topic, self.state.transcript,  # pop only after this succeeds
-                                            avoid=self.state.avoid_questions.get(topic.title, []))
+                                            avoid=self.state.avoid_questions.get(topic.title, []),
+                                            baseline=self.state.baseline_tests)
         self.state.queues[role].pop(0)
         self.state.follow_ups_on_topic = 0
         yield self._ask(role, "open", topic.title, q.file_ref, q.question, q.reasoning)
 
     def _ask(self, role: Role, kind: str, topic: str, file_ref: str, question: str, reasoning: str) -> Event:
-        self.state.transcript.append(Turn(examiner=role, kind=kind, topic=topic, file_ref=file_ref, question=question))
+        self.state.transcript.append(Turn(examiner=role, kind=kind, topic=topic, file_ref=file_ref, question=question,
+                                          difficulty=DIFFICULTY[role]))
         return Event(speaker=role, message=question, reasoning=reasoning, file_ref=file_ref)
 
     def _finish(self, reason: str) -> Iterator[Event]:

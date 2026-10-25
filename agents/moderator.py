@@ -18,7 +18,10 @@ from .guardrails import file_ref_exists, split_ref
 from .schemas import Examiner as Role, KeyFile, PanelPlan, PlannedTopic, PreviousAttempt, ProjectSummary, Report, RoleBrief, Turn
 
 PROMPTS = Path(__file__).parent / "prompts"
-ORDER: tuple[Role, ...] = ("professor", "engineer", "junior")
+# Fundamentals first, hardest last: the Junior's "explain it simply" questions open the viva, the
+# Professor's design/trade-off questions come next, and the Engineer's production/security edge
+# cases — the ones students find toughest — are saved for once the student has warmed up.
+ORDER: tuple[Role, ...] = ("junior", "professor", "engineer")
 RETAKE_BAR = 60         # topics below this confidence are retaken
 MAX_RETAKE_TOPICS = 3
 MAX_TOPICS_PER_EXAMINER = 2

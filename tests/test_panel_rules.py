@@ -11,7 +11,7 @@ import pytest
 from agents import llm
 from agents.examiner import MAX_FOLLOW_UPS
 from agents.guardrails import classify_answer, file_ref_exists
-from agents.panel import MAX_CHALLENGES, MAX_QUESTIONS, MAX_TEST_RUNS, Panel
+from agents.panel import MAX_CHALLENGES, MAX_QUESTIONS, MAX_TEST_RUNS, WARMUP_TOPIC, Panel
 from agents.schemas import (
     ChallengeDecision,
     PanelPlan,
@@ -106,8 +106,11 @@ def test_limits_hold_against_a_misbehaving_model(summary, model, agentic):
     for t in st.transcript:
         run = run + 1 if t.kind == "follow_up" else 0
         assert run <= MAX_FOLLOW_UPS
-    # every question the student saw points at a real file
+    # every question the student saw points at a real file — except the code-authored warm-up, which is
+    # deliberately open-ended ("what features have you built?") and never shown to the model to hallucinate
     for t in st.transcript:
+        if t.topic == WARMUP_TOPIC:
+            continue
         assert file_ref_exists(t.file_ref, summary), t.file_ref
     for e in events:
         if e.file_ref and e.speaker in ("professor", "engineer", "junior") and not e.tool_used:

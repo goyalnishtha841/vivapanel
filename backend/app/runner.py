@@ -67,20 +67,21 @@ def _close_sandbox(sid: str) -> None:
 
 
 def _tools(sid: str, summary: ProjectSummary):
-    """(run_tests, repo_tools) for a session: the sample project uses recorded results; real repos a sandbox."""
+    """(run_tests, repo_tools, baseline_ready) for a session: the sample project uses recorded results (always
+    "ready"); real repos a sandbox, whose prepare step runs in the background so this never blocks."""
     if _is_sample(summary.repo_url):
-        return mock_test_runner(), LocalRepoTools(MOCK_REPO)
+        return mock_test_runner(), LocalRepoTools(MOCK_REPO), (lambda: True)
     clone = config.REPOS_DIR / sid
     if not clone.exists():
-        return None, None
+        return None, None, None
     box = _sandbox(sid, summary)
-    return (box.run if box else None), LocalRepoTools(clone)
+    return (box.run if box else None), LocalRepoTools(clone), (box.ready_now if box else None)
 
 
 def _panel(sid: str, row: dict) -> Panel:
     summary = ProjectSummary.model_validate_json(row["summary"])
-    run_tests, repo_tools = _tools(sid, summary)
-    return Panel.from_json(summary, row["state"], run_tests=run_tests, repo_tools=repo_tools)
+    run_tests, repo_tools, baseline_ready = _tools(sid, summary)
+    return Panel.from_json(summary, row["state"], run_tests=run_tests, repo_tools=repo_tools, baseline_ready=baseline_ready)
 
 
 def _run(sid: str, events, on_fail: str = "retry_answer") -> bool:
@@ -129,8 +130,8 @@ def _start(sid: str, repo_url: str, student: str | None = None, role: RoleBrief 
             store.update(sid, status="error", error="llm_failed")
             return
 
-        run_tests, repo_tools = _tools(sid, summary)
-        panel = Panel(summary, run_tests=run_tests, repo_tools=repo_tools)
+        run_tests, repo_tools, baseline_ready = _tools(sid, summary)
+        panel = Panel(summary, run_tests=run_tests, repo_tools=repo_tools, baseline_ready=baseline_ready)
         panel.state.role = role
         _begin(sid, summary, panel)
 
@@ -165,9 +166,10 @@ def _start_retake(sid: str, prev_sid: str) -> None:
                 clone(*parse_repo_url(summary.repo_url), config.REPOS_DIR / sid)
             except IngestError as e:
                 print(f"[{sid}] retake clone failed ({e.code}); the Engineer won't open files", flush=True)
-        run_tests, repo_tools = _tools(sid, summary)
+        run_tests, repo_tools, baseline_ready = _tools(sid, summary)
         panel = Panel.retake(summary, prev_sid, Report.model_validate_json(prev["report"]),
-                             PanelState.model_validate_json(prev["state"]), run_tests=run_tests, repo_tools=repo_tools)
+                             PanelState.model_validate_json(prev["state"]), run_tests=run_tests, repo_tools=repo_tools,
+                             baseline_ready=baseline_ready)
         store.update(sid, state=panel.to_json())  # the plan and its shorter question limit, before the first question
         _begin(sid, summary, panel)
 
@@ -178,7 +180,7 @@ class Busy(Exception):
     pass
 
 
-def answer(sid: str, text: str, seconds: float | None = None, pasted: bool | None = None) -> None:
+def answer(sid: str, text: str, seconds: float | None = None, pasted: bool | None = None, skip: bool = False) -> None:
     lock = _lock(sid)
     if not lock.acquire(blocking=False):
         raise Busy()
@@ -187,14 +189,14 @@ def answer(sid: str, text: str, seconds: float | None = None, pasted: bool | Non
         lock.release()
         raise Busy()
     store.update(sid, status="thinking")
-    threading.Thread(target=_answer, args=(sid, row, text, lock, seconds, pasted), daemon=True,
+    threading.Thread(target=_answer, args=(sid, row, text, lock, seconds, pasted, skip), daemon=True,
                      name=f"answer-{sid}").start()
 
 
-def _answer(sid: str, row: dict, text: str, lock: threading.Lock, seconds=None, pasted=None) -> None:
+def _answer(sid: str, row: dict, text: str, lock: threading.Lock, seconds=None, pasted=None, skip: bool = False) -> None:
     try:
         panel = _panel(sid, row)
-        _run(sid, panel.answer(text, seconds=seconds, pasted=pasted))
+        _run(sid, panel.answer(text, seconds=seconds, pasted=pasted, skip=skip))
         store.update(sid, state=panel.to_json(), status="scoring" if panel.done else "awaiting")
         if panel.done:
             _score(sid, panel)
