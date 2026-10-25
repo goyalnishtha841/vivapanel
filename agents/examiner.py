@@ -45,6 +45,10 @@ MAX_KEY_FILES = 8
 MAX_SNIPPET_CHARS = 900
 MAX_CLAIMS = 8
 DISPLAY = {"professor": "Professor", "engineer": "Engineer", "junior": "Junior"}
+# Each examiner's lane is inherently a difficulty level (see moderator.ORDER): the Junior checks basic
+# understanding, the Professor probes design, the Engineer pushes into production/security edge cases.
+# Used only to label questions for the report (skipped-by-difficulty); it doesn't change who asks what.
+DIFFICULTY: dict[Role, str] = {"junior": "fundamentals", "professor": "intermediate", "engineer": "advanced"}
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -163,8 +167,11 @@ class Examiner:
 
     # ---------- moves ----------
 
-    def open_topic(self, topic: PlannedTopic, transcript: list[Turn], avoid: list[str] = ()) -> QuestionDecision:
-        """avoid: questions asked on this topic in an earlier attempt (retake); the new opener must differ."""
+    def open_topic(self, topic: PlannedTopic, transcript: list[Turn], avoid: list[str] = (),
+                   baseline: RunTestsResult | None = None) -> QuestionDecision:
+        """avoid: questions asked on this topic in an earlier attempt (retake); the new opener must differ.
+        baseline: the project's own test suite, already run in the sandbox this session (if ready in time) —
+        lets the question draw on what's verified instead of what merely looks plausible."""
         if llm.is_offline():
             d = self._offline_open(topic)
         else:
@@ -179,6 +186,10 @@ class Examiner:
                    "Re-test that same weakness, the exact concept they got wrong, with a freshly worded question; don't "
                    "drift to a different issue in the file. Not one of these from last time:\n"
                    + "\n".join(f"- {q}" for q in avoid) if avoid else "")
+                + (f"\n\n**Already verified in the sandbox this session:** the project's own tests — {baseline.passed} "
+                   f"passed, {baseline.failed} failed" + (f" ({', '.join(baseline.failing_tests[:3])})" if baseline.failing_tests else "")
+                   + ". If relevant to this topic, you may ground your question in that real result (e.g. ask them to "
+                   "explain a failure, or what a passing test actually covers) instead of asking them to guess." if baseline else "")
             )
             d = self._grounded(user, QuestionDecision, lambda d: d.file_ref, default_ref=topic.file_ref,
                                question_of=lambda d: d.question, earlier=_asked(transcript) + list(avoid))
@@ -433,10 +444,11 @@ class Examiner:
     def _offline_open(self, topic: PlannedTopic) -> QuestionDecision:
         path, func = split_ref(topic.file_ref)
         target = f"`{func}` in `{path}`" if func else f"`{path}`"
+        feature = topic.title[:1].lower() + topic.title[1:]
         q = {
-            "professor": f"Why did you design {target} this way, and what alternative did you reject?",
-            "engineer": f"What happens in {target} when two users hit it at the same moment, or send malicious input?",
-            "junior": f"Can you explain what {target} does, step by step, like I'm a first-year?",
+            "professor": f"In the {feature} feature ({target}), why this approach instead of the obvious alternative?",
+            "engineer": f"In the {feature} feature ({target}), what happens when two users hit it at the same moment, or send malicious input?",
+            "junior": f"Can you walk me through the {feature} feature ({target}), step by step, like I'm a first-year?",
         }[self.role]
         return QuestionDecision(file_ref=topic.file_ref, question=q, reasoning=f"Opening '{topic.title}': {topic.why}")
 

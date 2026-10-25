@@ -53,9 +53,10 @@ class NewSession(BaseModel):
 
 class Answer(BaseModel):
     session_id: str
-    answer: str = Field(max_length=8000)
+    answer: str = Field(default="", max_length=8000)
     seconds: float | None = Field(default=None, ge=0, le=7200)  # question shown -> answer sent (browser)
     pasted: bool | None = None
+    skip: bool = False  # "Next question": close this topic without grading an answer
 
 
 class NewInvite(BaseModel):
@@ -197,7 +198,7 @@ def answer(body: Answer):
     if row["status"] == "error":
         return error(409, "session_failed", "This session hit an error. Start a new one.")
     try:
-        runner.answer(body.session_id, body.answer, seconds=body.seconds, pasted=body.pasted)
+        runner.answer(body.session_id, body.answer, seconds=body.seconds, pasted=body.pasted, skip=body.skip)
     except runner.Busy:
         return error(409, "panel_busy", "The panel is still working on the last turn.")
     return {"ok": True}

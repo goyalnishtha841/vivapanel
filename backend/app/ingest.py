@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -37,6 +38,10 @@ SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "env", "__pycache__", "dis
 IMPORTANT_NAMES = {"main", "app", "server", "index", "routes", "views", "models", "model", "db", "database", "auth",
                    "api", "service", "services", "controller", "controllers", "handlers", "core", "engine", "utils",
                    "schema", "schemas", "store", "manager", "train", "predict", "pipeline"}
+# Wiring/entry-point files (they import and register everything else) make poor single-feature questions once
+# they grow large — "explain main.py" has no real answer. Specific feature modules (routes/books.py, services/
+# fines.py) are what a student can actually defend, so these get a smaller, size-capped bonus instead.
+ENTRY_NAMES = {"main", "app", "server", "index", "wsgi", "asgi"}
 MAX_KEY_FILES = 8
 MAX_FILES = 2000
 HEAD_LINES = 45
@@ -134,11 +139,14 @@ def pick_key_files(root: Path, files: list[str], prefer: set[str] = frozenset(),
             continue
         if stem in {"setup", "conftest", "conf", "noxfile", "tasks", "manage", "wsgi", "asgi"} or stem.startswith("bench"):
             continue
+        is_entry = stem in ENTRY_NAMES
+        big_entry = is_entry and size > 6_000  # large + entry-named: almost certainly wiring, not one feature
         score = 0.0
-        score += 3 if stem in IMPORTANT_NAMES or any(n in stem for n in ("route", "model", "service", "auth", "db")) else 0
+        score += 0 if big_entry else (1.5 if is_entry else (
+            3 if stem in IMPORTANT_NAMES or any(n in stem for n in ("route", "model", "service", "auth", "db")) else 0))
         score += 1.5 if parts & {"src", "app", "lib", "api", "server", "backend", "core"} else 0
         score += max(0, 3 - f.count("/")) * 0.5                 # shallower is a little more central
-        score += min(size, 12_000) / 4_000                      # substantial code matters most
+        score += (min(size, 12_000) / 4_000) * (-0.5 if big_entry else (0.6 if is_entry else 1.0))
         score += 5 if f in prefer else 0
         score -= 3 if stem in {"config", "settings", "constants"} or (stem == "__init__" and size < 1500) else 0
         scored.append((score, f))
@@ -192,7 +200,33 @@ DEFS = re.compile(r"^\s*(?:async\s+)?(?:def|class|function|func|fn)\s+([A-Za-z_]
                   r"^\s*(?:export\s+)?(?:const|let)\s+([A-Za-z_]\w*)\s*=\s*(?:async\s*)?\(", re.M)
 
 
-def names_in(text: str, limit: int = 8) -> list[str]:
+def _python_defs(text: str, limit: int) -> list[str]:
+    """Function/class/method names from the real parser, not a text search — so a line that merely *looks*
+    like a def (inside a docstring, a comment, or a string literal) never gets mistaken for one."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return []
+    out: list[str] = []
+
+    def visit(node: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            if len(out) >= limit:
+                return
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if not child.name.startswith("__") and child.name not in out:
+                    out.append(child.name)
+                visit(child)  # methods inside this class, in source order
+
+    visit(tree)
+    return out
+
+
+def names_in(text: str, path: str = "", limit: int = 8) -> list[str]:
+    if path.endswith(".py"):
+        names = _python_defs(text, limit)
+        if names:
+            return names
     out: list[str] = []
     for m in DEFS.finditer(text):
         n = m.group(1) or m.group(2)
@@ -211,8 +245,8 @@ def explore(owner: str, name: str, root: Path, files: list[str], candidates: lis
 
     repo = LocalRepoTools(root)
     tree = "\n".join(files[:200]) + (f"\n… ({len(files) - 200} more)" if len(files) > 200 else "")
-    cands = "\n".join(f"- {f} ({(root / f).stat().st_size // 100 / 10} KB): {', '.join(names_in(read_text(root / f))) or '—'}"
-                      for f in candidates)
+    cands = "\n".join(f"- {f} ({(root / f).stat().st_size // 100 / 10} KB): "
+                      f"{', '.join(names_in(read_text(root / f), path=f)) or '—'}" for f in candidates)
     user = (
         f"Repository: {owner}/{name}\nGitHub description: {meta.get('description') or '(none)'}\n\n"
         f"## README\n{readme[:3500] or '(no README)'}\n\n## File tree\n{tree}\n\n"
@@ -283,7 +317,7 @@ def summarise(owner: str, name: str, root: Path, files: list[str], key: list[str
     for f in must_include:
         if not any(k.path == f for k in key_files):
             text = read_text(root / f)
-            funcs = names_in(text, 4)
+            funcs = names_in(text, path=f, limit=4)
             if len(key_files) == MAX_KEY_FILES:
                 key_files.pop()
             key_files.insert(0, KeyFile(path=f, purpose="Code the student wrote.", functions=funcs, snippet=snippet(text, funcs)))
@@ -322,8 +356,8 @@ def _offline_draft(readme: str, key: list[str], root: Path) -> SummaryDraft:
     claims = [line.strip("-* ").strip() for line in readme.splitlines() if line.strip().startswith(("-", "*"))][:6]
     files = []
     for f in key:
-        names = re.findall(r"(?:def|class|function)\s+([A-Za-z_]\w*)", read_text(root / f))
-        files.append(_FileDraft(path=f, purpose="Source file.", functions=names[:4]))
+        names = names_in(read_text(root / f), path=f, limit=4)
+        files.append(_FileDraft(path=f, purpose="Source file.", functions=names))
     return SummaryDraft(one_liner=first, tech_stack=[], readme_claims=claims, key_files=files)
 
 

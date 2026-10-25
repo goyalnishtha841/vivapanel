@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 Speaker = Literal["professor", "engineer", "junior", "moderator", "system", "student"]
 ToolName = Literal["fetch_repo_tree", "read_file", "search_code", "run_tests"]
+Difficulty = Literal["fundamentals", "intermediate", "advanced"]
 
 
 def now_iso() -> str:
@@ -152,9 +153,11 @@ class Turn(BaseModel):
     topic: str
     file_ref: Optional[str]
     question: str
+    difficulty: Difficulty = "fundamentals"  # the asking examiner's lane (see examiner.DIFFICULTY)
     answer: Optional[str] = None
     verdict: Optional[Verdict] = None
     judgement: str = ""
+    skipped: bool = False  # the student chose "Next question" instead of answering
     seconds: Optional[float] = None  # from the question appearing to the answer being sent (hiring integrity)
     pasted: Optional[bool] = None    # the answer box received a paste
 
@@ -278,6 +281,10 @@ class Report(BaseModel):
     study_plan: list[StudyStep]
     recruiter_summary: str
     questions_asked: int
+    skipped_count: int = 0
+    skipped_by_difficulty: dict[str, int] = {}  # "fundamentals"/"intermediate"/"advanced" -> count
+    interview_tips: list[str] = []  # general, transferable advice for the student's NEXT interview, not just this repo
+    baseline_tests: Optional[RunTestsResult] = None  # the project's own tests, run once before any question was asked
     previous: Optional[PreviousAttempt] = None  # set on a retake
     student: Optional[StudentWork] = None  # team project
     hiring: Optional[RoleBrief] = None     # hiring mode
@@ -324,3 +331,8 @@ class ReportNarrative(BaseModel):
     )
     skill_evidence: list[_NarrativeSkill] = Field(
         default=[], description="Hiring screen only: one entry per skill the role needs. Otherwise an empty list.")
+    interview_tips: list[str] = Field(
+        default=[], description="3-5 short, general, transferable pieces of advice for the student's NEXT interview "
+        "(any company, any project) — about how they answer, not what to study in this repo. Plain language, each "
+        "one sentence, grounded in a real pattern from this session (e.g. they gave strong answers but took long "
+        "pauses, or they were accurate on implementation but vague on trade-offs).")

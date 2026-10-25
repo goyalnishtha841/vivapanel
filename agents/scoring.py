@@ -17,7 +17,7 @@ from pathlib import Path
 from . import llm
 from .examiner import DISPLAY, render_summary
 from .guardrails import clip_answer, file_ref_exists, split_ref
-from .panel import PanelState
+from .panel import WARMUP_TOPIC, PanelState
 from .schemas import (
     Integrity, ProjectSummary, SkillScore, Quote, Report, ReportNarrative, StudyStep, TopicScore, Turn, UnansweredQuestion, Verdict,
     WeakSpot,
@@ -72,6 +72,10 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
         ],
         recruiter_summary=narrative.recruiter_summary,
         questions_asked=len(transcript),
+        skipped_count=len(_skipped(transcript)),
+        skipped_by_difficulty=_skipped_by_difficulty(transcript),
+        interview_tips=narrative.interview_tips,
+        baseline_tests=state.baseline_tests,
         previous=state.previous,
         student=summary.student,
         hiring=state.role,
@@ -86,7 +90,7 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
 def _topic_scores(state: PanelState) -> list[TopicScore]:
     order: list[str] = [t.title for t in (state.plan.topics if state.plan else [])]
     for t in state.transcript:
-        if t.topic not in order:
+        if t.topic not in order and t.topic != WARMUP_TOPIC:  # the icebreaker is never graded or scored
             order.append(t.topic)
     planned = {t.title: t for t in (state.plan.topics if state.plan else [])}
     contradicted = {state.transcript[v.turn - 1].topic for v in state.verifications if v.outcome == "contradicted"}
@@ -166,6 +170,17 @@ def _clip(text: str) -> str:
     return text if len(text) <= QUOTE_CHARS else text[: QUOTE_CHARS - 1].rsplit(" ", 1)[0] + "…"
 
 
+def _skipped(transcript: list[Turn]) -> list[Turn]:
+    return [t for t in transcript if t.skipped]
+
+
+def _skipped_by_difficulty(transcript: list[Turn]) -> dict[str, int]:
+    counts = {"fundamentals": 0, "intermediate": 0, "advanced": 0}
+    for t in _skipped(transcript):
+        counts[t.difficulty] += 1
+    return counts
+
+
 def _unanswered(transcript: list[Turn]) -> list[UnansweredQuestion]:
     return [
         UnansweredQuestion(turn=i, examiner=t.examiner, question=t.question, file_ref=t.file_ref,
@@ -178,7 +193,15 @@ def _unanswered(transcript: list[Turn]) -> list[UnansweredQuestion]:
 # ---------- narrative (the model) ----------
 
 def _render_for_scorer(state: PanelState, topics: list[TopicScore]) -> str:
-    lines = ["## Transcript"]
+    lines = []
+    if state.baseline_tests:
+        b = state.baseline_tests
+        lines.append(f"## Baseline: the project's own tests, run once before any question was asked\n"
+                     f"{b.status}, {b.passed} passed, {b.failed} failed" +
+                     (f" (failing: {', '.join(b.failing_tests[:5])})" if b.failing_tests else "") +
+                     ". Treat this as ground truth: if a student's answer claims a feature works and the baseline "
+                     "shows its test failing (or vice versa), that contradiction is important evidence — use it.\n")
+    lines.append("## Transcript")
     for i, t in enumerate(state.transcript, 1):
         lines.append(f"Q{i} {DISPLAY[t.examiner]} [{t.kind}, topic: {t.topic}] ({t.file_ref}): {t.question}")
         lines.append(f"A{i} Student: " + (f"«{clip_answer(t.answer)}»" if t.answer is not None else "(no answer — session ended)"))
@@ -265,7 +288,25 @@ def _offline_narrative(summary: ProjectSummary, state: PanelState, topics: list[
         recruiter_summary=f"Answered {sum(1 for t in state.transcript if t.answer)} questions; "
                           f"{sum(1 for t in reached if t.confidence >= 60)} of {len(reached)} topics at 60+ confidence. "
                           f"{len(state.verifications)} claim(s) checked against the test suite.",
+        interview_tips=_offline_tips(state, reached, weak),
     )
+
+
+def _offline_tips(state: PanelState, reached: list[TopicScore], weak: list[TopicScore]) -> list[str]:
+    tips = []
+    if weak:
+        tips.append(f"Before your next interview, re-read {weak[0].file_ref or 'the weak topic above'} until you can "
+                    "explain it out loud without looking at the code.")
+    if any(t.confidence is not None and 40 <= t.confidence < 60 for t in reached):
+        tips.append("For a partial answer, say what you're sure of first, then what you're unsure of — that reads "
+                    "as more honest than guessing the whole thing.")
+    if sum(1 for t in state.transcript if t.answer in (None, "")) or any(
+            t.verdict == "no_answer" for t in state.transcript):
+        tips.append("Saying 'I don't know, but here's my best guess and why' beats silence — interviewers mark "
+                    "reasoning, not just the final answer.")
+    tips.append("Practice explaining one feature end-to-end out loud before the interview: what it does, why you "
+                "built it that way, and what you'd improve.")
+    return tips[:5]
 
 
 # ---------- rendering ----------
@@ -292,7 +333,11 @@ def report_to_markdown(r: Report) -> str:
         for q in w.evidence:
             out.append(f"> **Q{q.turn} {q.speaker}:** {q.text}")
         out.append("")
-    out.append("## Test evidence (sandbox)")
+    if r.baseline_tests:
+        b = r.baseline_tests
+        out.append(f"\n## Baseline (sandbox, run before any question was asked)\n**{b.status}** — {b.passed} passed, "
+                   f"{b.failed} failed ({b.duration_s}s)" + (f" — failing: {', '.join(b.failing_tests)}" if b.failing_tests else ""))
+    out.append("\n## Test evidence (sandbox)")
     if not r.test_evidence:
         out.append("No claims were checked against the tests in this session.")
     for v in r.test_evidence:
@@ -315,5 +360,9 @@ def report_to_markdown(r: Report) -> str:
     out.append("\n## Study plan")
     for i, s in enumerate(r.study_plan, 1):
         out.append(f"{i}. **{s.title}** ({s.minutes} min){' — `' + s.file_ref + '`' if s.file_ref else ''}: {s.action}")
+    if r.interview_tips:
+        out.append("\n## Tips for your next interview")
+        for t in r.interview_tips:
+            out.append(f"- {t}")
     out.append(f"\n## Summary for recruiters\n{r.recruiter_summary}")
     return "\n".join(out)

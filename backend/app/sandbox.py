@@ -125,6 +125,11 @@ class Sandbox:
         # if the project couldn't be pip-installed (e.g. needs a C compiler), import it straight from the copy
         return {"PYTHONPATH": f"{self.work}/src:{self.work}", "PYTHONDONTWRITEBYTECODE": "1"}
 
+    def ready_now(self) -> bool:
+        """Non-blocking: has prepare() (install + cut network) already finished? Safe to poll from the
+        panel's turn loop — unlike run(), it never waits, so it can't stall a question."""
+        return self._ready.is_set()
+
     def run(self, test_path: str | None) -> RunTestsResult:
         if test_path not in self.tests:
             test_path = None  # only real test files; anything else runs the whole suite
