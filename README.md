@@ -18,13 +18,13 @@ report with a study plan.
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%C2%B7%20Gemini%20backup%20%C2%B7%20Claude-8A63D2)
 [![License: MIT](https://img.shields.io/badge/license-MIT-E07A3F.svg)](LICENSE)
 
-### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) · [▶ Watch the 2-minute demo](https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4)
+### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) · [▶ Watch the 2-minute demo](https://drive.google.com/file/d/1Lv7N7xPtM28SpyjZEgwQ__8K_oQGboSQ/view?usp=sharing)
 
 <sub>Free hosting: if the site has been idle, the first load takes about a minute while it wakes up.</sub>
 
 <br />
 
-<a href="https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4"><img src="demo-video/out/thumbnail.jpg" width="900" alt="Demo video: a live viva on a real repo. Click to play (2:10)" /></a>
+<a href="https://drive.google.com/file/d/1Lv7N7xPtM28SpyjZEgwQ__8K_oQGboSQ/view?usp=sharing"><img src="demo-video/out/thumbnail.jpg" width="900" alt="Demo video: a live viva on a real repo. Click to play (2:10)" /></a>
 
 <sub><b>Demo video (2:10).</b> A real capture of the deployed app, not a mockup: a full viva on a second real repo
 (<a href="https://github.com/goyalnishtha841/tradepilot">tradepilot</a>), including the Engineer catching a false claim
@@ -43,7 +43,7 @@ with a live code search, and the report it produced. Click the image to play.</s
 >   kept reliable in a *live conversation* by enforcing every rule in code, not in prompts.
 > - **Engineering:** FastAPI + React, streaming over Server-Sent Events, Postgres, isolated test sandboxes
 >   (Docker / Daytona), automatic fallback across AI providers, 131 automated tests and CI on every push.
-> - **Proof:** deployed at [viva-panel.onrender.com](https://viva-panel.onrender.com), verified on real student projects, with a [2-minute demo](https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4); the numbers in this README link to evidence.
+> - **Proof:** deployed at [viva-panel.onrender.com](https://viva-panel.onrender.com), verified on real student projects, with a [2-minute demo](https://drive.google.com/file/d/1Lv7N7xPtM28SpyjZEgwQ__8K_oQGboSQ/view?usp=sharing); the numbers in this README link to evidence.
 
 ## Contents
 
@@ -289,7 +289,7 @@ Every number below comes from a recorded run; the evidence files are in [`docs/e
 | What | Result | Evidence |
 |---|---|---|
 | Real student repos on the live site | **4 of 4 ran end to end** (scrapeflow, vivapanel, gazelens, foresight); **every question cited a real file** | [test-case-proof.md](docs/test-case-proof.md) |
-| Demo, live | A full viva on a fifth real repo (tradepilot) through the deployed app; the Engineer caught a false claim with a live code search | [demo video](https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4) |
+| Demo, live | A full viva on a fifth real repo (tradepilot) through the deployed app; the Engineer caught a false claim with a live code search | [demo video](https://drive.google.com/file/d/1Lv7N7xPtM28SpyjZEgwQ__8K_oQGboSQ/view?usp=sharing) |
 | Hiring mode, live | Link created, viva finished, recruiter report with per-skill scores; candidate blocked from the recruiter report | [live-2026-10-22-hiring.json](docs/evidence/live-2026-10-22-hiring.json) |
 | Edge-case handling, live | **7 / 7** (repeat, "idk", one word, empty, injection, off-topic, pasted code) | [day4-eval.md](docs/evidence/day4-eval.md) |
 | Question quality, live | Avg 20 words, max 35, 0% multi-part, 0 invalid file references | [token-optimisation.md](docs/evidence/token-optimisation.md) |
