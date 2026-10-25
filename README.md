@@ -18,15 +18,17 @@ report with a study plan.
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%C2%B7%20Gemini%20backup%20%C2%B7%20Claude-8A63D2)
 [![License: MIT](https://img.shields.io/badge/license-MIT-E07A3F.svg)](LICENSE)
 
-### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) · [▶ Watch the 2-minute demo](demo-video/out/demo.mp4)
+### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) · [▶ Watch the 2-minute demo](https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4)
 
-<sub>Free hosting: if the site has been idle, the first load takes about a minute while it wakes up.
-The demo is a real capture — a live viva run against a second repo
-(<a href="https://github.com/goyalnishtha841/tradepilot">tradepilot</a>), not a mockup.</sub>
+<sub>Free hosting: if the site has been idle, the first load takes about a minute while it wakes up.</sub>
 
 <br />
 
-<img src="docs/screenshots/hero.jpg" width="900" alt="Viva Panel landing page: 'Can you defend your own code?' with a code card and the three examiners" />
+<a href="https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4"><img src="demo-video/out/thumbnail.jpg" width="900" alt="Demo video: a live viva on a real repo. Click to play (2:10)" /></a>
+
+<sub><b>Demo video (2:10).</b> A real capture of the deployed app, not a mockup: a full viva on a second real repo
+(<a href="https://github.com/goyalnishtha841/tradepilot">tradepilot</a>), including the Engineer catching a false claim
+with a live code search, and the report it produced. Click the image to play.</sub>
 
 <sub>Built for the <b>Ziro Agentic AI Hackathon 2026</b> by team <b>Triple Threat AI</b>.</sub>
 
@@ -36,16 +38,16 @@ The demo is a real capture — a live viva run against a second repo
 
 > **Reviewing this for hiring? The 30-second version.**
 >
-> - **What it is:** a multi-agent AI system (6 agents) that runs a live, typed-or-spoken oral exam on any public GitHub repo.
+> - **What it is:** a multi-agent AI system (6 agents) that runs a live, typed-or-spoken oral exam on any public GitHub repo, paced like a real interview.
 > - **What's hard about it:** agents that use tools in a loop (read files, search code, run tests in a sandbox),
 >   kept reliable in a *live conversation* by enforcing every rule in code, not in prompts.
 > - **Engineering:** FastAPI + React, streaming over Server-Sent Events, Postgres, isolated test sandboxes
 >   (Docker / Daytona), automatic fallback across AI providers, 131 automated tests and CI on every push.
-> - **Proof:** deployed and verified on real student projects; the numbers in this README link to evidence.
+> - **Proof:** deployed at [viva-panel.onrender.com](https://viva-panel.onrender.com), verified on real student projects, with a [2-minute demo](https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4); the numbers in this README link to evidence.
 
 ## Contents
 
-[Take a look](#take-a-look) · [The problem](#the-problem) · [What it does](#what-viva-panel-does) ·
+[Demo](#take-a-look) · [The problem](#the-problem) · [What it does](#what-viva-panel-does) ·
 [Features](#features) · [What makes it different](#what-makes-it-different) · [How it works](#how-it-works) ·
 [Results](#measured-results) · [Tech stack](#tech-stack-and-why) · [Safety and fairness](#safety-fairness-and-privacy) ·
 [Run it locally](#run-it-locally) · [Testing](#testing) · [Repository layout](#repository-layout) ·
@@ -103,14 +105,18 @@ shows in answers. We automate the questioning, not the suspicion.
 
 1. **Paste a GitHub link.** The server copies the repo, and a **reader agent** explores it (opening files, searching
    for where the README's claims live) to pick the files that matter. Each step is narrated live.
-2. **Meet the panel.** A **moderator** plans 6 topics, 2 per examiner, each tied to a real file. Three examiners take turns:
-   - 🎓 **The Professor**: design and theory. *Why this approach? What are the trade-offs?*
-   - 🔧 **The Industry Engineer**: scale, edge cases and security. Reads your code and runs your tests to check claims.
-   - 🙋 **The Curious Junior**: *can you explain it simply?* This is where copied code shows fastest.
+2. **Meet the panel.** A **moderator** plans 6 topics, 2 per examiner, each tied to a real file and to a feature the
+   README names. Meanwhile the sandbox runs your project's own tests once, so later questions can cite what's verified.
+   The viva runs like a real interview: a **warm-up** ("what features have you built?"), then easy to hard:
+   - 🙋 **The Curious Junior** (fundamentals): *can you explain it simply?* This is where copied code shows fastest.
+   - 🎓 **The Professor** (design): *why this approach? What are the trade-offs?*
+   - 🔧 **The Industry Engineer** (advanced): scale, edge cases and security. Reads your code and runs your tests to check claims.
 3. **Answer by typing or speaking.** Each answer is judged against the real code (*strong*, *partial*, *weak* or *no answer*).
-   Weak answers get sharper follow-ups, and examiners can challenge each other's verdicts.
+   Weak answers get sharper follow-ups grounded in what you said, and examiners can challenge each other's verdicts.
+   **Repeat?** re-asks a question as often as you like, ungraded; **Skip** moves on and is counted separately from wrong answers.
 4. **Get your report.** A score per topic, your weak answers quoted back with the file they were about, what your tests
-   proved, and a study plan with time estimates. Save it as PDF or share the link.
+   actually showed compared with what you claimed, skipped questions by difficulty, a study plan with time estimates and
+   interview tips for next time. Save it as PDF or share the link.
 5. **Retake your weak topics.** A shorter viva on only what you got wrong, with new questions, and the report shows
    how each topic improved (live run: *SQL injection 3 → 100*).
 
@@ -127,13 +133,15 @@ shows in answers. We automate the questioning, not the suspicion.
 | | Feature | What it does |
 |---|---|---|
 | 🗺️ | **Agentic repo reader** | An agent opens and searches up to 4 files of its choosing, then picks what to examine. Code validates every path and function, so agents never see invented code |
-| 🧭 | **Planned, not random** | The moderator assigns 2 non-overlapping topics per examiner, each anchored to a real file |
+| 🧭 | **Planned, not random** | The moderator assigns 2 non-overlapping topics per examiner, each anchored to a real file and a README feature |
+| 🪜 | **Paced like a real interview** | A warm-up question first, then fundamentals → design → advanced; the first real question picks up on the warm-up answer |
 | 🧑‍⚖️ | **Three distinct examiners** | Different lenses and tones, one shared transcript, so they notice contradictions ("earlier you told the Professor…") |
 | 🔍 | **Tool-using Engineer** | Calls `read_file` and `search_code` in a function-calling loop. Say "I close connections in a teardown hook" and it searches and finds out |
 | 🧪 | **Claims verified by running tests** | Picks the right test file, runs it in a throwaway sandbox, reads it, and rules the claim *supported*, *contradicted* or *inconclusive*. Passing tests are not taken as proof |
 | ⚔️ | **Cross-examination** | After a verdict, a colleague may push back ("I'd push back on that, Professor") or build on the point |
 | 🛡️ | **Guardrails in code** | Empty answers, "I don't know", "repeat that", one-word replies, pasted code and prompt injection are classified and capped by code before the AI sees them |
-| 📄 | **Evidence-backed report** | Code computes every score and copies every quote; the AI writes only the narrative and study plan, and its references are validated |
+| ⏭️ | **Repeat and Skip** | Repeat re-asks, unlimited and ungraded; Skip moves on and is reported separately from wrong answers, by difficulty |
+| 📄 | **Evidence-backed report** | Code computes every score and copies every quote; compares the baseline test run with the student's claims; adds a study plan and interview tips. The AI's references are validated |
 | 🔁 | **Retake (re-viva)** | Up to 3 weakest topics, same examiner and file, new questions (code rejects last time's), progress per topic |
 | 👥 | **Team-project mode** | A file is yours if you made at least half its commits; at least half the topics land on your files; the report marks "your code" vs "teammate's code" |
 | 🤝 | **Hiring mode** | Role-weighted questions, a consent screen, per-skill scores computed by code, flags with quotes, answer timing and pastes shown as context, full transcript. Single-use links; the recruiter key is stored only as a hash |
@@ -149,13 +157,15 @@ shows in answers. We automate the questioning, not the suspicion.
 <br />
 
 **Reader agent** (`backend/app/ingest.py`). One GitHub API call checks the repo is public and under 150 MB, then a
-shallow clone. Rules rank up to 14 candidate files; the agent sees the README, the file tree and their function names,
+shallow clone. Rules rank up to 14 candidate files, preferring focused feature modules over bloated entry files (`main.py`, `app.py`);
+Python functions are found by parsing the code (AST), so a function mentioned only in a comment is never cited. The agent sees the README, the file tree and their function names,
 opens or searches up to 4 files, and submits key files plus a project summary. Code checks every path and function
 against the clone and cuts the snippets from the real files. If the agent fails, one plain call does the same job.
 
 **Moderator** (`agents/moderator.py`). One structured-output call proposes topics; code drops invented files, wrong
 examiners and duplicates, caps 2 per examiner and tops up anyone left empty. Turn order is plain round-robin code: an
-LLM deciding who speaks next would add latency and cost with no benefit.
+LLM deciding who speaks next would add latency and cost with no benefit. Topics run fundamentals first (Junior), then
+design (Professor), then advanced (Engineer), after a warm-up question that lets the student choose where to start.
 
 **Examiners** (`agents/examiner.py`, `agents/prompts/`). Each has its own role prompt plus shared rules: judge against
 the code, one question at a time, at most 35 words, never grade grammar, accent or fluency. Each decision comes back as
@@ -170,11 +180,14 @@ the Engineer judges without tools rather than stopping.
 **Test sandbox** (`backend/app/sandbox.py`). Prepared in the background as soon as the repo is read: a throwaway
 Docker container locally, a Daytona sandbox on the hosted site (E2B also supported). A copy of the repo goes in; a
 Python 3.12 environment, pytest and the project's dependencies are installed; the network is cut (Docker) before any
-test runs; each run has a 60 s limit; none of our keys are inside; the box is deleted afterwards. Code corrects the
-verdict (an all-green run can never "contradict" a claim). At most 1 test run per viva.
+test runs; each run has a 60 s limit; none of our keys are inside; the box is deleted afterwards. As soon as it's ready,
+the project's own suite runs once as a **baseline**, so questions and the report can cite what's actually verified. A
+testable claim can trigger one targeted run per viva. Code corrects the verdict (an all-green run can never
+"contradict" a claim).
 
 **Guardrails** (`agents/guardrails.py`, `agents/panel.py:_enforce`). Every answer is classified before the model sees
-it. "Repeat that" gets the question reworded, ungraded. After "I don't know", the next question gets easier. Empty and
+it. "Repeat that" gets the question reworded, ungraded, as many times as needed; Skip records the question as skipped,
+not as a wrong answer. After "I don't know", the next question gets easier. Empty and
 "I don't know" are always *no answer*; an injection attempt never scores above *weak*, never triggers a test run, and
 shows a visible note. Answers are wrapped in « » as data and clipped to 1,500 characters.
 
@@ -232,9 +245,9 @@ flowchart LR
 
     subgraph PANEL [Panel · one shared transcript]
         direction TB
-        P[Professor<br/>design & theory]
-        E[Engineer<br/>scale · edge cases · security<br/>🔧 tool-using agent]
-        J[Junior<br/>explain it simply]
+        J[1 · Junior<br/>warm-up · fundamentals]
+        P[2 · Professor<br/>design & theory]
+        E[3 · Engineer<br/>scale · edge cases · security<br/>🔧 tool-using agent]
     end
 
     E <-->|read_file · search_code| REPO[(Read-only clone)]
@@ -258,6 +271,9 @@ flowchart LR
 | Which tools to call and which tests to run | Tool budgets; only real test files; an all-green run can't "contradict" a claim |
 | The narrative and study plan | Scores, readiness, quotes and skill scores are computed; cited turns and files are validated |
 
+**A viva, start to finish:** the sandbox runs the project's tests once (baseline) → a warm-up question → topics from
+fundamentals to advanced → the report.
+
 **One answer, step by step:** classify the answer in code → the examiner judges it against the code (the Engineer may
 read or search first) → code enforces edge-case verdicts → a testable claim goes to the sandbox → follow up or hand
 over → a colleague may challenge → the moderator passes the floor → after 12 questions, the scorer writes the report.
@@ -272,7 +288,8 @@ Every number below comes from a recorded run; the evidence files are in [`docs/e
 
 | What | Result | Evidence |
 |---|---|---|
-| Real student repos on the live site | **4 of 4 ran end to end** (scrapeflow, vivapanel, gazelens, foresight); **12/12 questions cited a real file** in each | [test-case-proof.md](docs/test-case-proof.md) |
+| Real student repos on the live site | **4 of 4 ran end to end** (scrapeflow, vivapanel, gazelens, foresight); **every question cited a real file** | [test-case-proof.md](docs/test-case-proof.md) |
+| Demo, live | A full viva on a fifth real repo (tradepilot) through the deployed app; the Engineer caught a false claim with a live code search | [demo video](https://github.com/goyalnishtha841/vivapanel/blob/main/demo-video/out/demo.mp4) |
 | Hiring mode, live | Link created, viva finished, recruiter report with per-skill scores; candidate blocked from the recruiter report | [live-2026-10-22-hiring.json](docs/evidence/live-2026-10-22-hiring.json) |
 | Edge-case handling, live | **7 / 7** (repeat, "idk", one word, empty, injection, off-topic, pasted code) | [day4-eval.md](docs/evidence/day4-eval.md) |
 | Question quality, live | Avg 20 words, max 35, 0% multi-part, 0 invalid file references | [token-optimisation.md](docs/evidence/token-optimisation.md) |
@@ -486,6 +503,7 @@ We'd rather state these than have you find them:
 - **Scores aren't yet calibrated against human examiners.** The weights are a reasoned first version.
 - **A memorised answer can pass some questions.** Line-specific follow-ups, the Junior and test runs make it hard, not impossible.
 - **Free hosting sleeps** after 15 idle minutes; the first visit then takes about a minute.
+- **Hosted sandbox setup:** on Daytona the account needs a default region set, or test runs fail at creation (`/health` shows it under `sandbox.last_error`).
 
 **Next:** a teacher view for a whole class (built on the hiring-mode page) · calibrate scores against real faculty viva
 marks · sandboxes for JavaScript (Jest) and Java (JUnit) · browser end-to-end tests · more natural voices.
@@ -499,7 +517,7 @@ Built for the **Ziro Agentic AI Hackathon 2026** by **Triple Threat AI**.
 | Member | Area |
 |---|---|
 | **Nishtha Goyal** (team lead) | AI and agents (reader, moderator, examiners, scorer, guardrails, LLM routing, evals), plus the backend, UI, re-viva, team and hiring modes |
-| **Asmita Roy** ([@techAsmita](https://github.com/techAsmita)) | UI redesign and polish, voice and hands-free mode, mobile layout, testing on real repos, sandbox checks, demo video and slides |
+| **Asmita Roy** ([@techAsmita](https://github.com/techAsmita)) | UI redesign and polish, voice and hands-free mode, mobile layout, interview pacing (warm-up, fundamentals first, Skip), reports, Postgres and Daytona sandbox, testing on real repos, demo video and slides |
 | **Akshita** | Hosted test sandbox, deployment |
 
 **License:** [MIT](LICENSE) © 2026 Team Triple Threat AI (Nishtha Goyal, Asmita Roy, Akshita).
