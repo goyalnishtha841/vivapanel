@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Github } from "./Icons.jsx";
-import { api, DEMO_REPO } from "../lib/api.js";
+import { api, DEMO_REPO, MODE } from "../lib/api.js";
 import { go } from "../lib/route.js";
 
 const GITHUB = /^(https?:\/\/)?(www\.)?github\.com\/[\w.-]+\/[\w.-]+\/?(\.git)?$/i;
@@ -30,7 +30,12 @@ export default function RepoInput({ size = "lg", invite = null, disabled = false
     }
     setError("");
     const full = repo.startsWith("http") ? repo : `https://${repo}`;
-    if (value === DEMO_REPO) return begin(full);
+        if (MODE === "demo" && full.replace(/(\.git|\/)$/, "") !== DEMO_REPO) {
+      // the offline demo has no server to clone and read a repo, so it could only replay the sample project
+      setError("This is the offline demo, so it can only replay the sample project. To be examined on your own repo, "
+        + "run it with the backend (see “Run it locally” in the README), or use the live site.");
+      return;
+    }if (value === DEMO_REPO) return begin(full);
     setBusy(true);
     const people = await api.contributors(full).catch(() => []);
     if (people.length >= 2) {

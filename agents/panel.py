@@ -30,13 +30,14 @@ from .schemas import (
 from . import llm
 from .tools import TestRunner
 
-MAX_QUESTIONS = 12      # ~5 minute session
+MAX_QUESTIONS = 6       # ~3 minute session: two questions from each examiner
+QUESTIONS_PER_EXAMINER = 2  # the Junior's warm-up counts as one of the Junior's two
 WARMUP_TOPIC = "Project overview"  # the icebreaker's topic name: real interviews start broad, not with a pop quiz
 WARMUP_QUESTION = ("Before we get into specifics — what features have you built in this project? Pick one you're "
                    "proud of, and we'll start there.")
-MAX_CHALLENGES = 2      # cross-examiner interjections per session
+MAX_CHALLENGES = 0      # cross-examiner interjections per session (off: each examiner asks only their own two)
 MAX_TEST_RUNS = 1       # sandbox verifications per session (each can take up to a minute)
-RETAKE_QUESTIONS_PER_TOPIC = 3  # an opener and up to two follow-ups
+RETAKE_QUESTIONS_PER_TOPIC = 1  # one question per weak topic, like the main viva
 
 
 class PanelState(BaseModel):
@@ -113,6 +114,22 @@ class Panel:
         t = self.state.transcript
         return bool(t) and t[-1].answer is None and not self.state.done
 
+    def asked(self, role: Role | None = None) -> int:
+        """Questions asked so far (by one examiner, or in total). A rephrase is the same question again, so it
+        never counts — the student can ask for one as often as they like."""
+        return sum(1 for t in self.state.transcript if t.kind != "rephrase" and (role is None or t.examiner == role))
+
+    def _has_budget(self, role: Role) -> bool:
+        return self.asked(role) < QUESTIONS_PER_EXAMINER
+
+    def _out_of_time(self) -> bool:
+        return self.asked() >= self.state.max_questions
+
+    def _next_speaker(self, current: Role | None) -> Role | None:
+        """Round-robin over examiners who still have a topic and a question left."""
+        queues = {r: (q if self._has_budget(r) else []) for r, q in self.state.queues.items()}
+        return self.moderator.next_speaker(current, queues)
+
     # ---------- session flow ----------
 
     def start(self) -> Iterator[Event]:
@@ -120,6 +137,11 @@ class Panel:
             yield Event(speaker="moderator", message="Reading your project and planning the panel…",
                         reasoning="Moderator is assigning topics so examiners don't overlap.")
             self.state.plan = self.moderator.plan(role=self.state.role)
+            if not self.state.previous and "junior" in self.examiners:
+                # The warm-up is one of the Junior's two questions, so the Junior keeps a single planned topic.
+                junior = [t for t in self.state.plan.topics if t.examiner == "junior"]
+                drop = {id(t) for t in junior[QUESTIONS_PER_EXAMINER - 1:]}
+                self.state.plan.topics = [t for t in self.state.plan.topics if id(t) not in drop]
             self.state.queues = {r: [t for t in self.state.plan.topics if t.examiner == r] for r in self.state.examiners}
         plan = self.state.plan
         message, reasoning = self.moderator.plan_announcement(plan, retake=self.state.previous)
@@ -132,7 +154,7 @@ class Panel:
             yield self._warmup()
             return
 
-        first = self.moderator.next_speaker(None, self.state.queues)
+        first = self._next_speaker(None)
         if first is None:
             yield from self._finish("No topics could be planned for this repository.")
             return
@@ -169,10 +191,10 @@ class Panel:
                 examiner=turn.examiner, topic=turn.topic, file_ref=turn.file_ref, question=turn.question,
                 answer=turn.answer, verdict="no_answer", judgement=turn.judgement,
             ))
-            if len(st.transcript) >= st.max_questions:
+            if self._out_of_time():
                 yield from self._finish(f"Question limit ({st.max_questions}) reached.")
                 return
-            nxt = self.moderator.next_speaker(turn.examiner, st.queues)
+            nxt = self._next_speaker(turn.examiner)
             if nxt is None:
                 yield from self._finish("All planned topics covered.")
                 return
@@ -192,7 +214,7 @@ class Panel:
 
         # 0. "Can you repeat that?" — re-ask more simply, ungraded. No limit: the student can ask as
         # many times as they need, and it never counts against them or advances the viva.
-        if kind == "clarify" and len(st.transcript) < st.max_questions:
+        if kind == "clarify":
             try:
                 q = asker.rephrase(st.transcript)
             except LLMError:
@@ -224,14 +246,14 @@ class Panel:
             answer=clip_answer(turn.answer), verdict=d.verdict, judgement=d.judgement,
         ))
 
-        out_of_time = len(st.transcript) >= st.max_questions
+        out_of_time = self._out_of_time()
 
-        # 1b. A testable claim takes priority: the Engineer checks it in the sandbox.
-        if d.testable_claim and not out_of_time and self._can_verify():
+        # 1b. A testable claim takes priority: the Engineer checks it in the sandbox (as one of their two questions).
+        if d.testable_claim and not out_of_time and self._can_verify() and self._has_budget("engineer"):
             yield from self._verify(len(st.transcript), d.testable_claim, d.test_path or None)
             return
 
-        if d.action == "follow_up" and not out_of_time:
+        if d.action == "follow_up" and not out_of_time and self._has_budget(turn.examiner):
             st.follow_ups_on_topic += 1
             yield self._ask(turn.examiner, "follow_up", turn.topic, d.file_ref, d.question,
                             f"[{d.verdict}] {d.judgement} → {d.reasoning}")
@@ -243,7 +265,7 @@ class Panel:
         if not out_of_time and st.challenges_used < MAX_CHALLENGES and not topic_challenged \
                 and d.verdict in ("strong", "partial"):
             challenger = self.moderator.challenger_for(turn, st.challenges_used)
-            if challenger:
+            if challenger and self._has_budget(challenger):
                 try:
                     c = self.examiners[challenger].consider_challenge(st.transcript)
                 except LLMError:
@@ -262,7 +284,7 @@ class Panel:
         if out_of_time:
             yield from self._finish(f"Question limit ({st.max_questions}) reached.")
             return
-        nxt = self.moderator.next_speaker(turn.examiner, st.queues)
+        nxt = self._next_speaker(turn.examiner)
         if nxt is None:
             yield from self._finish("All planned topics covered.")
             return
@@ -388,7 +410,7 @@ class Panel:
             turn.answer = text.strip()
             turn.seconds, turn.pasted = seconds, pasted
             yield Event(speaker="student", message=turn.answer)
-            if classify_answer(turn.answer) == "clarify" and len(st.transcript) < st.max_questions:
+            if classify_answer(turn.answer) == "clarify":
                 try:
                     q = self.examiners["junior"].rephrase(st.transcript)
                 except LLMError:
@@ -399,7 +421,7 @@ class Panel:
                                 "Warm-up rephrase, not graded.")
                 return
             turn.verdict, turn.judgement = "not_applicable", "Warm-up; not graded."
-        first = self.moderator.next_speaker(None, st.queues)
+        first = self._next_speaker("junior")  # the Junior just spoke: hand the floor on, so nobody asks twice in a row
         if first is None:
             yield from self._finish("No topics could be planned for this repository.")
             return

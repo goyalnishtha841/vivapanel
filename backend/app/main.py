@@ -186,7 +186,7 @@ def session_status(sid: str):
     state = json.loads(row["state"]) if row["state"] else {}
     role = _role_of(row)
     return {"session_id": sid, "repo_url": row["repo_url"], "status": row["status"], "error": row["error"],
-            "max_questions": state.get("max_questions", 12), "retake_of": (state.get("previous") or {}).get("session_id"),
+            "max_questions": state.get("max_questions", 6), "retake_of": (state.get("previous") or {}).get("session_id"),
             "hiring": {"title": role.title, "company": role.company} if role else None}
 
 

@@ -36,7 +36,7 @@ from .schemas import (
 )
 
 PROMPTS = Path(__file__).parent / "prompts"
-MAX_FOLLOW_UPS = 2
+MAX_FOLLOW_UPS = 0  # one question per topic: an examiner moves to a new part of the project instead of drilling deeper
 RECENT_TURNS = 4        # turns shown in full; older ones are one line each
 OLD_ANSWER_CHARS = 110
 # Prompt-size caps so a very large repo still fits (Groq free tier: 8k tokens/minute).

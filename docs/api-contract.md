@@ -33,10 +33,10 @@ first). `GET /screening/{token}?key=…` → `{role, status, repo_url, report}`;
 score, topics}]`, `integrity: {answers, pasted, median_seconds, fast_long_answers}` and `transcript`. `GET /report/{id}`
 returns 403 `shared_with_recruiter` for screening sessions. `POST /answer` accepts optional `seconds` and `pasted`,
 plus `skip` (bool): "Next question" — closes the current topic as `no_answer` without grading anything, counted
-separately from wrong/empty answers in the report. Asking the panel to repeat the question ("Can you repeat the
-question?") is unlimited and never counts against the student or advances the viva.
+separately from wrong/empty answers in the report, and scored 0. Typing "can you repeat the question?" gets it
+reworded; that is unlimited and never counts against the student or advances the viva.
 
-`GET /session/{id}` also returns `max_questions` (12, fewer on a retake) and `retake_of`. A retake's report has
+`GET /session/{id}` also returns `max_questions` (6, two per examiner; fewer on a retake) and `retake_of`. A retake's report has
 `previous: {session_id, overall_score, topics: {title: confidence}}` so the UI can show progress.
 
 ---
