@@ -23,6 +23,8 @@ report with a study plan.
 
 <br />
 
+<a href="https://viva-panel.onrender.com"><img src="docs/screenshots/hero.jpg" width="900" alt="Viva Panel homepage: Can you defend your own code? A Professor, an Industry Engineer and a Curious Junior read your GitHub project, then question you on it." /></a>
+
 <sub>Built for the <b>Ziro Agentic AI Hackathon 2026</b> by team <b>Triple Threat AI</b>.</sub>
 
 </div>
