@@ -23,8 +23,6 @@ report with a study plan.
 
 <br />
 
-<a href="https://drive.google.com/file/d/15hFsBL40CQet-wR655UVys5GMszkbUiv/view?usp=sharing"><img src="demo-video/out/thumbnail.jpg" width="900" alt="Demo video: a live viva on a real repo. Click to play (2:10)" /></a>
-
 <sub>Built for the <b>Ziro Agentic AI Hackathon 2026</b> by team <b>Triple Threat AI</b>.</sub>
 
 </div>
