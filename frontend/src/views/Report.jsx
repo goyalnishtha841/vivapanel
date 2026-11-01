@@ -51,7 +51,7 @@ export default function Report({ id, theme, onToggleTheme }) {
                 <Print /> <span className="hidden sm:inline">Download PDF</span>
               </button>
             )}
-            <button onClick={() => go("/")} className="rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] px-4 py-2 text-[14px] font-semibold text-white shadow-[0_0_20px_-6px_rgb(var(--brand)/0.8)]">New viva</button>
+            <button onClick={() => go("/")} className="rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] whitespace-nowrap px-4 py-2 text-[14px] font-semibold text-white shadow-[0_0_20px_-6px_rgb(var(--brand)/0.8)]">New viva</button>
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
@@ -117,13 +117,13 @@ function Body({ r, id }) {
     <main id="main" className="mx-auto max-w-[1100px] px-4 pb-24 pt-8 sm:px-6 print:pb-4 print:pt-4">
 
       {/* ------------------------------------------------ summary */}
-      <section className="neon neon-sunset grid items-center gap-8 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[auto_1fr]"
+      <section className="neon neon-sunset grid grid-cols-1 items-center gap-8 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[auto_1fr]"
         aria-label="Overall result">
         <ScoreRing value={r.overall_score} color={rd.ring} />
         <div>
           <div className="flex flex-wrap items-center gap-2 text-[15px] text-muted">
             Viva report for <span className="font-medium text-ink">{r.project}</span>
-            {MODE === "demo" && <span title="The real report from the recorded session you just replayed" className="rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">demo</span>}
+            {MODE === "demo" && <span title="Demo replay: real questions and answers from a recorded session. A question you skip scores 0, like the real panel." className="rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">demo</span>}
             {r.previous && <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-[12px] font-medium text-brand">retake</span>}
           </div>
           <div className={`mt-2 text-[30px] font-bold leading-tight sm:text-[38px] ${rd.cls}`}>{rd.label}</div>
@@ -142,7 +142,7 @@ function Body({ r, id }) {
 
       {r.previous && <Progress r={r} />}
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-8">
           {/* ------------------------------------------------ topics */}
           <Card title="Confidence by topic" tone="neon-blue">
@@ -155,7 +155,7 @@ function Body({ r, id }) {
                   <li key={t.topic} className="avoid-break">
                     <div className="flex items-baseline justify-between gap-3">
                       <div className="min-w-0">
-                        <span className="text-[16px] font-semibold">{t.topic}</span>
+                        <span className="break-words text-[16px] font-semibold">{t.topic}</span>
                         <span className={`ml-2 text-[12px] font-medium ${tone.text}`}>{ex.short}</span>
                         {t.own_work === true && <span className="ml-2 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">your code</span>}
                         {t.own_work === false && <span className="ml-2 rounded-full bg-raised px-2 py-0.5 text-[11px] font-medium text-muted">teammate's code</span>}
@@ -190,6 +190,11 @@ function Body({ r, id }) {
           {/* ------------------------------------------------ weak spots */}
           <Card title="Weak spots" tone="neon-rose">
             <div className="space-y-5">
+              {r.weak_spots.length === 0 && (
+                <p className="text-[15px] text-muted">
+                  {r.overall_score === 0 && r.unanswered.length > 0 ? "No answers to judge yet: every question was skipped or left unanswered." : "None found in this session."}
+                </p>
+              )}
               {r.weak_spots.map((w, i) => (
                 <div key={i} className="rounded-2xl border border-bad/25 bg-bad/[0.04] p-5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -249,7 +254,7 @@ function Body({ r, id }) {
           )}
 
           {/* ------------------------------------------------ unanswered */}
-          <Card title="Questions you didn't answer">
+          <Card title="Questions without a real answer">
             {r.skipped_count > 0 && <SkippedByDifficulty r={r} />}
             {r.unanswered.length === 0 ? (
               <p className="text-[15px] text-muted">None. Every question got a real attempt.</p>
@@ -359,7 +364,7 @@ function StudyPlan({ steps }) {
     return n;
   });
   return (
-    <section className="neon neon-violet rounded-[22px] p-6 lg:sticky lg:top-24 print:static" aria-label="Your study plan">
+    <section className="neon neon-violet rounded-[22px] p-6" aria-label="Your study plan">
         <h2 className="text-[21px] font-bold">Your study plan</h2>
         <p className="mt-1 text-[15px] text-muted">{left} of {total} minutes left</p>
         <ol className="mt-5 space-y-3">

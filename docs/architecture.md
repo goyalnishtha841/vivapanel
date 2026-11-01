@@ -46,15 +46,11 @@ flowchart TD
     C -->|empty / idk / one word /<br/>injection / long / normal| J[Asking examiner judges vs the code<br/>Engineer may call read_file / search_code]
     J --> EN[Code enforces edge-case rules<br/>e.g. 'idk' is always no_answer]
     EN --> T{Testable claim?}
-    T -->|yes, budget left| V[Engineer agent verifies:<br/>run_tests, read the test file, judge]
-    V --> Q1[Engineer asks about the result]
-    T -->|no| F{Follow up?}
-    F -->|yes, under 2 on this topic| Q2[Same examiner asks a deeper question]
-    F -->|no| X{Colleague challenges?<br/>max 1 per topic, 2 per session}
-    X -->|disagree / extend| Q3[Colleague asks, same topic and file]
-    X -->|no| M[Moderator hands over<br/>round-robin to next examiner with topics left]
+    T -->|yes, Engineer has a question left| V[Engineer agent verifies:<br/>run_tests, read the test file, judge]
+    V --> Q1[Engineer asks about the result<br/>one of their two questions]
+    T -->|no| M[Moderator hands over<br/>round-robin to the next examiner<br/>with a topic and a question left]
     M --> Q4[Next examiner opens a topic]
-    M -->|no topics or 12 questions| END[Session ends → report]
+    M -->|everyone has asked 2, or 6 questions| END[Session ends → report]
 ```
 
 Every arrow that ends in a question is a streamed `Event` with `speaker`, `message`, `reasoning` (why this
@@ -70,7 +66,7 @@ things a jury, a student or a recruiter needs to trust.
 | What to probe, and why | Every cited file exists; a cited function exists in that file (one rewrite, then dropped) |
 | Each question's wording | Under 45 words, one question, not a repeat of an earlier one (one rewrite) |
 | The verdict on each answer | Empty or "I don't know" is always `no_answer`; an attempt to instruct the panel is never above `weak` |
-| Whether to follow up, challenge or move on | At most 2 follow-ups per topic, 1 challenge per topic, 2 per session, 12 questions in total |
+| What to ask next | 2 questions per examiner, one per topic, 6 in total; a skipped question scores 0 |
 | Which tools the Engineer calls, and what the results mean | Tests always run for a flagged claim; an all-green run can't "contradict" a claim; tests run at most once |
 | Weak spots, study plan, recruiter summary | Every score is computed from verdicts; every quote is copied from the transcript; cited turns and files are validated |
 | — | Turn-taking (round-robin), so the live demo is fast, free and predictable |
@@ -101,8 +97,7 @@ sequenceDiagram
 ## 5. Shared memory
 
 Examiners have no private state. Every call receives the **panel transcript**: all questions, all answers, and every
-examiner's verdict. That is how the Professor can say "Earlier you told the Engineer X, but…", and how a colleague can
-challenge a verdict. The whole session state is one Pydantic object (`PanelState`, about 3 KB), saved to SQLite after
+examiner's verdict. That is how the Professor can say "Earlier you told the Engineer X, but…". The whole session state is one Pydantic object (`PanelState`, about 3 KB), saved to SQLite after
 every answer, so any request can rebuild the panel.
 
 ## 5b. Retake (re-viva)
@@ -141,7 +136,7 @@ person to review, and the shared rules forbid grading grammar, accent or fluency
 ```
 topic confidence = weighted mean of verdict scores × 100 − 15 if a test contradicted the student's claim
                    strong 1.0 · partial 0.55 · weak 0.2 · no_answer 0
-                   later answers weigh more (recovering after a follow-up shows understanding)
+                   later answers weigh more (e.g. the answer after a sandbox check)
 overall score    = mean of the topics that were reached
 readiness        = ≥ 80 ready · ≥ 60 almost ready · ≥ 40 needs work · below 40 not ready
 ```

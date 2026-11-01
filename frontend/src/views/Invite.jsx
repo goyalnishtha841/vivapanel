@@ -50,8 +50,8 @@ export default function Invite({ token, theme, onToggleTheme }) {
               <>
                 <ol className="mt-8 space-y-3 text-[16px] leading-relaxed">
                   <li><b>1.</b> Paste the GitHub link of a project you built. It must be public.</li>
-                  <li><b>2.</b> Three examiners ask you 10–12 questions on your own code. Type or speak; typing is fine.</li>
-                  <li><b>3.</b> They may run your project's tests to check something you say. It takes about 10 minutes.</li>
+                  <li><b>2.</b> Three examiners ask you 6 questions on your own project, two each. Type or speak; typing is fine.</li>
+                  <li><b>3.</b> They may run your project's tests to check something you say. It takes about 5 minutes.</li>
                 </ol>
 
                 <div className="mt-8 rounded-[22px] border border-brand/30 bg-brand/[0.05] p-5 sm:p-6">

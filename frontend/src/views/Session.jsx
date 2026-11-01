@@ -36,7 +36,7 @@ function useNarrow() {
   return narrow;
 }
 
-const MAX_QUESTIONS = 12; // agents/panel.py; a retake has fewer (from the session info)
+const MAX_QUESTIONS = 6; // agents/panel.py: two per examiner; a retake can have fewer (from the session info)
 
 const DOT = { strong: "bg-good", partial: "bg-warn", weak: "bg-bad", no_answer: "bg-muted/60" };
 
@@ -45,9 +45,6 @@ export default function Session({ id, theme, onToggleTheme }) {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
-  // hands-free: examiners speak, then the mic opens by itself and the answer is sent after a pause
-  const [handsFree, setHandsFree] = useState(false);
-  const [listenSignal, setListenSignal] = useState(0);
   const [tips, setTips] = useState(() => !seenTips());
   const [drawer, setDrawer] = useState(() => window.innerWidth >= 1280);
   const [startedAt] = useState(() => Date.now());
@@ -104,38 +101,13 @@ export default function Session({ id, theme, onToggleTheme }) {
   const handover = [...timeline].reverse().find((i) => i.type === "moderator" && timeline.indexOf(i) > currentIdx);
   const feedback = lastAnswer?.verdict && lastAnswerIdx < currentIdx ? lastAnswer : null;
 
-  // speak each new question in that examiner's voice; in hands-free mode, open the mic when they finish
+  // speak each new question in that examiner's voice when the speaker is on
   const spoken = useRef(0);
-  const handsFreeRef = useRef(handsFree);
-  handsFreeRef.current = handsFree;
   useEffect(() => {
     if (!voiceOn || !last || events.length === spoken.current) return;
     spoken.current = events.length;
-    if (isQuestion(last)) {
-      speak(last.speaker, cleanQuestion(last.message), () => {
-        if (handsFreeRef.current) setListenSignal((n) => n + 1);
-      });
-    }
+    if (isQuestion(last)) speak(last.speaker, cleanQuestion(last.message));
   }, [events, voiceOn, last]);
-  // no speech synthesis in this browser: hands-free just opens the mic when a question arrives
-  useEffect(() => {
-    if (handsFree && !canSpeak && awaiting) setListenSignal((n) => n + 1);
-  }, [handsFree, awaiting, currentIdx]);
-
-  function toggleHandsFree() {
-    setHandsFree((on) => {
-      const next = !on;
-      if (next) {
-        setVoiceOn(true);
-        // read out the question already on screen, then listen
-        if (awaiting && current) {
-          spoken.current = events.length;
-          speak(current.speaker, cleanQuestion(current.message), () => setListenSignal((n) => n + 1));
-        }
-      }
-      return next;
-    });
-  }
 
   function dismissTips() {
     setTips(false);
@@ -165,7 +137,7 @@ export default function Session({ id, theme, onToggleTheme }) {
       <Ambient calm />
       <TopBar maxQuestions={maxQuestions} theme={theme} onToggleTheme={onToggleTheme} answers={answers} awaitingIndex={awaiting ? answers.length : -1}
         startedAt={startedAt} done={done || failed} voiceOn={voiceOn}
-        onToggleVoice={() => { setVoiceOn((v) => !v); setHandsFree(false); stopSpeaking(); }}
+        onToggleVoice={() => { setVoiceOn((v) => !v); stopSpeaking(); }}
         onToggleDrawer={() => setDrawer((v) => !v)} />
 
       <div className="flex min-h-0 flex-1">
@@ -181,7 +153,7 @@ export default function Session({ id, theme, onToggleTheme }) {
                   <button onClick={() => go("/")} className="rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] shadow-[0_0_24px_-6px_rgb(var(--brand)/0.8)] px-7 py-3 text-[16px] font-semibold text-white">Try another repo</button>
                 </div>
               ) : done ? (
-                <EndCard id={id} answered={answers.length} hiring={hiring} />
+                <EndCard id={id} answered={answers.filter((a) => !/^\(skipped/i.test((a.message || "").trim())).length} total={answers.length} hiring={hiring} />
               ) : (
                 <div className="flex min-h-full flex-col justify-center gap-5">
                   <AnimatePresence mode="wait">
@@ -203,8 +175,7 @@ export default function Session({ id, theme, onToggleTheme }) {
                 <AnimatePresence>
                   {tips && awaiting && answers.length === 0 && <FirstVivaTips key="tips" onClose={dismissTips} />}
                 </AnimatePresence>
-                <Composer enabled={awaiting} onSend={send} current={current}
-                  handsFree={handsFree} onToggleHandsFree={toggleHandsFree} listenSignal={listenSignal} />
+                <Composer enabled={awaiting} onSend={send} current={current} />
               </>
             )}
           </div>
@@ -248,7 +219,7 @@ function TopBar({ theme, onToggleTheme, maxQuestions, answers, awaitingIndex, st
         })}
       </div>
 
-      {/* phones: a compact counter instead of twelve dots */}
+      {/* phones: a compact counter instead of the dots */}
       <span className="rounded-full bg-ink/[0.06] px-2.5 py-1 font-mono text-[12px] tabular-nums text-muted sm:hidden" aria-hidden="true">
         {Math.min(answers.length + (awaitingIndex >= 0 ? 1 : 0), maxQuestions)}/{maxQuestions}
       </span>
@@ -407,7 +378,12 @@ function ToolSteps({ tools, live = false }) {
   );
 }
 
-function EndCard({ id, answered, hiring }) {
+function answeredLine(answered, total) {
+  if (answered === 0) return `You skipped all ${total} questions, so there's nothing to score this time.`;
+  return `You answered ${answered} of ${total} question${total === 1 ? "" : "s"}.`;
+}
+
+function EndCard({ id, answered, total, hiring }) {
   if (hiring) {
     return (
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="flex min-h-full flex-col items-center justify-center gap-5 py-10 text-center">
@@ -415,7 +391,7 @@ function EndCard({ id, answered, hiring }) {
           That's the end of your <span className="font-serif font-normal italic text-brand">viva.</span>
         </h2>
         <p className="max-w-md text-[17px] text-muted">
-          You answered {answered} questions. Your results are being prepared and will be shared with
+          {answeredLine(answered, total)} Your results are being prepared and will be shared with
           {hiring.company ? ` ${hiring.company}` : " the recruiter"} for the {hiring.title} role. Thank you!
         </p>
       </motion.div>
@@ -426,7 +402,7 @@ function EndCard({ id, answered, hiring }) {
       <h2 className="text-[34px] font-bold tracking-[-0.02em] sm:text-[44px]">
         That's the end of your <span className="font-serif font-normal italic text-brand">viva.</span>
       </h2>
-      <p className="max-w-md text-[17px] text-muted">You answered {answered} questions. The scoring agent has your transcript and the test results.</p>
+      <p className="max-w-md text-[17px] text-muted">{answeredLine(answered, total)} The scoring agent has your transcript and the test results.</p>
       <button onClick={() => go(`/report/${id}`)}
         className="rounded-full bg-gradient-to-r from-[#FF4E6A] to-[#FF7A45] shadow-[0_0_24px_-6px_rgb(var(--brand)/0.8)] px-8 py-4 text-[17px] font-semibold text-white transition-shadow hover:shadow-[0_0_32px_-4px_rgb(var(--brand)/0.7)]">
         See my report →
@@ -442,9 +418,8 @@ function FirstVivaTips({ onClose }) {
   const tips = [
     canListen ? ["🎙️", "Type your answer, or tap the mic and speak it."] : ["⌨️", "Type your answer in the box below."],
     ["↵", "Enter sends. Shift + Enter starts a new line."],
-    ["🔁", "Question unclear? Tap Repeat? as many times as you need — it's asked again, without counting against you."],
     ["⏭️", "Stuck? Tap Skip → to move on to the next question instead."],
-    canSpeak && ["🔊", "Turn on the speaker to hear each examiner in their own voice, or try Hands-free."],
+    canSpeak && ["🔊", "Turn on the speaker to hear each examiner in their own voice."],
     ["📄", "Code & transcript shows the exact file the panel is asking about."],
   ].filter(Boolean);
   return (
@@ -471,14 +446,11 @@ function FirstVivaTips({ onClose }) {
 
 /* ------------------------------------------------------------------ composer */
 
-const SILENCE_MS = 2500; // hands-free: send once the student has been quiet this long
-
-function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, listenSignal }) {
+function Composer({ enabled, onSend, current }) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState("");
   const stopRef = useRef(null);
-  const silence = useRef(null);
   const textRef = useRef("");
   const ref = useRef(null);
   // how the answer was given (time since the question appeared, any paste): shown in screening reports
@@ -486,15 +458,14 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
   const pasted = useRef(false);
 
   useEffect(() => {
-    if (enabled && !handsFree) ref.current?.focus();
+    if (enabled) ref.current?.focus();
     if (enabled) {
       shownAt.current = Date.now();
       pasted.current = false;
     }
-  }, [enabled, current, handsFree]);
+  }, [enabled, current]);
 
   function stopMic() {
-    clearTimeout(silence.current);
     stopRef.current?.();
     stopRef.current = null;
   }
@@ -521,12 +492,6 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
       (t) => {
         setText(t);
         textRef.current = t;
-        if (handsFree) {
-          clearTimeout(silence.current);
-          silence.current = setTimeout(() => {
-            if (textRef.current.trim()) submit(textRef.current);
-          }, SILENCE_MS);
-        }
       },
       () => {
         setListening(false);
@@ -541,13 +506,6 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
     else startMic();
   }
 
-  // hands-free: the session asks the mic to open once the examiner has finished speaking
-  useEffect(() => {
-    if (listenSignal && handsFree && enabled) startMic();
-  }, [listenSignal]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const repeat = () => submit("Can you repeat the question?");
-
   function skip() {
     if (!enabled) return;
     stopMic();
@@ -558,33 +516,13 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
 
   return (
     <div className="shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] pt-1 sm:pb-5 sm:pt-2">
-      {/* small controls row: hands-free on the left, Repeat?/Skip on phones on the right */}
-      <div className="mb-2 flex items-center justify-between gap-2 px-1">
-          {canListen ? (
-            <button onClick={onToggleHandsFree} aria-pressed={handsFree}
-              title="The examiners speak, then the mic opens by itself; your answer is sent after a short pause"
-              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${handsFree ? "bg-eng/15 text-eng ring-1 ring-eng/30" : "text-muted hover:bg-ink/[0.06] hover:text-ink"}`}>
-              <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${handsFree ? "bg-eng" : "bg-ink/20"}`} aria-hidden="true">
-                <span className={`absolute h-3 w-3 rounded-full bg-white transition-transform ${handsFree ? "translate-x-3.5" : "translate-x-0.5"}`} />
-              </span>
-              Hands-free
-            </button>
-          ) : <span />}
-          <span className="flex items-center gap-2">
-            {listening && (
-              <span className="text-[12px] font-medium text-bad">
-                {handsFree ? "Listening… pause to send" : "Listening…"}
-              </span>
-            )}
-            <button onClick={repeat} disabled={!enabled} title="Ask the panel to say the question again — doesn't count against you, and you can ask again as many times as you need"
-              className="rounded-full px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:hidden">
-              Repeat?
-            </button>
-            <button onClick={skip} disabled={!enabled} title="Move on to the next question without answering this one"
-              className="rounded-full px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:hidden">
-              Skip →
-            </button>
-          </span>
+      {/* small controls row: the listening indicator, and Skip on phones */}
+      <div className="mb-2 flex min-h-[8px] items-center justify-end gap-2 px-1">
+        {listening && <span className="text-[12px] font-medium text-bad">Listening…</span>}
+        <button onClick={skip} disabled={!enabled} title="Move on to the next question without answering this one"
+          className="rounded-full px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:hidden">
+          Skip →
+        </button>
       </div>
 
       <div className={`flex items-end gap-2 rounded-[24px] border bg-surface/90 p-2 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.5)] backdrop-blur transition-colors sm:p-2.5 ${enabled ? "border-ink/20" : "border-line opacity-60"}`}>
@@ -611,10 +549,6 @@ function Composer({ enabled, onSend, current, handsFree, onToggleHandsFree, list
           aria-label="Your answer"
           className="max-h-40 min-h-[44px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 text-[16px] leading-relaxed placeholder:text-muted focus:outline-none sm:min-h-[48px] sm:py-3 sm:text-[17px]"
         />
-        <button onClick={repeat} disabled={!enabled} title="Ask the panel to say the question again — doesn't count against you, and you can ask again as many times as you need"
-          className="hidden h-12 shrink-0 rounded-full px-4 text-[14px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:block">
-          Repeat?
-        </button>
         <button onClick={skip} disabled={!enabled} title="Move on to the next question without answering this one"
           className="hidden h-12 shrink-0 rounded-full px-4 text-[14px] font-medium text-muted transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 sm:block">
           Skip →
@@ -651,7 +585,7 @@ function Drawer({ open, onClose, timeline, plan, sessionId, focus }) {
               <div className="flex gap-1 rounded-full bg-raised p-1">
                 {[["code", "Code"], ["transcript", "Transcript"], ["plan", "The plan"]].map(([k, label]) => (
                   <button key={k} onClick={() => setTab(k)}
-                    className={`rounded-full px-4 py-1.5 text-[14px] font-medium transition-colors ${tab === k ? "bg-surface text-ink shadow-sm" : "text-muted"}`}>
+                    className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[14px] font-medium transition-colors sm:px-4 ${tab === k ? "bg-surface text-ink shadow-sm" : "text-muted"}`}>
                     {label}
                   </button>
                 ))}

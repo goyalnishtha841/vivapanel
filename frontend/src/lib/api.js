@@ -138,7 +138,7 @@ const demo = {
   },
   async createSession() {
     const id = `demo-${Math.random().toString(36).slice(2, 8)}`;
-    sessions.set(id, { cursor: 0, listener: null, running: false });
+    sessions.set(id, { cursor: 0, listener: null, running: false, skipped: [] });
     return id;
   },
   openStream(id, onEvent) {
@@ -150,19 +150,71 @@ const demo = {
       s.listener = null;
     };
   },
-  async sendAnswer(id, answer) {
+  async sendAnswer(id, answer, meta = {}) {
     const s = sessions.get(id);
     if (!s || s.running) return;
+    (s.skipped ||= []).push(Boolean(meta.skip)); // one entry per question, in order: the report scores skips as 0
     const recordedAnswer = recorded[s.cursor];
     s.listener?.({ ...recordedAnswer, message: answer, timestamp: new Date().toISOString() });
     s.cursor += 1; // the user's answer replaces the recorded one
     play(id);
   },
-  async getReport() {
+  async getReport(id) {
     await wait(1200);
-    return recordedReport;
+    return demoReport(sessions.get(id)?.skipped || []);
   },
 };
+
+/* The demo can't grade what you type (there's no model), so typed answers keep the recorded verdicts. A skipped
+ * question, though, is scored exactly as the real panel scores it: no_answer, 0 — using agents/scoring.py's numbers. */
+const VERDICT_WEIGHT = { strong: 1, partial: 0.55, weak: 0.2, no_answer: 0 };
+const confidenceOf = (vs) => {
+  if (!vs.length) return null;
+  const w = vs.map((_, i) => i + 1);
+  return Math.max(0, Math.round((vs.reduce((s, v, i) => s + VERDICT_WEIGHT[v] * w[i], 0) / w.reduce((a, b) => a + b, 0)) * 100));
+};
+const readinessOf = (score, covered) =>
+  covered < 2 ? (score < 60 ? "not_ready" : "needs_work") : score >= 80 ? "ready" : score >= 60 ? "almost_ready" : score >= 40 ? "needs_work" : "not_ready";
+
+function demoReport(skipped) {
+  // turn n is the n-th question; turn 1 is the ungraded warm-up
+  const skippedTurns = new Set(skipped.map((s, i) => (s ? i + 1 : 0)).filter((n) => n > 1));
+  if (!skippedTurns.size) return recordedReport;
+  const r = structuredClone(recordedReport);
+  const asSkipped = (quotes) => quotes.map((q) => (q.speaker === "student" && skippedTurns.has(q.turn) ? { ...q, text: "(skipped)" } : q));
+  const graded = new Set();
+  const questionOf = {};
+  for (const t of r.topics) {
+    const answers = t.evidence.filter((q) => q.speaker === "student").map((q) => q.turn);
+    for (const q of t.evidence) if (q.speaker !== "student") questionOf[q.turn] = { examiner: q.speaker, question: q.text, file_ref: t.file_ref };
+    answers.forEach((n) => graded.add(n));
+    t.verdicts = t.verdicts.map((v, i) => (skippedTurns.has(answers[i]) ? "no_answer" : v));
+    t.confidence = confidenceOf(t.verdicts);
+    if (answers.length && answers.every((n) => skippedTurns.has(n))) t.note = "Skipped, so it scores 0.";
+    t.evidence = asSkipped(t.evidence);
+  }
+  const covered = r.topics.filter((t) => t.confidence !== null).map((t) => t.confidence);
+  r.overall_score = covered.length ? Math.round(covered.reduce((a, b) => a + b, 0) / covered.length) : 0;
+  r.readiness = readinessOf(r.overall_score, covered.length);
+  r.weak_spots = r.weak_spots.map((w) => ({ ...w, evidence: asSkipped(w.evidence) }));
+  r.unanswered = r.unanswered.map((u) => (skippedTurns.has(u.turn) ? { ...u, answer: "(skipped)" } : u));
+  const already = new Set(r.unanswered.map((u) => u.turn));
+  r.unanswered = [...r.unanswered, ...[...skippedTurns].filter((n) => !already.has(n) && questionOf[n])
+    .map((n) => ({ turn: n, ...questionOf[n], answer: "(skipped)" }))].sort((a, b) => a.turn - b.turn);
+  r.test_evidence = r.test_evidence.filter((v) => !skippedTurns.has(v.turn)); // no claim was made, so none was tested
+  r.skipped_count = skippedTurns.size;
+  const n = skippedTurns.size;
+  if ([...graded].every((t) => skippedTurns.has(t))) {
+    r.headline = "No questions were answered, so there is nothing to score yet.";
+    r.weak_spots = [];
+    r.study_plan = [{ title: "Take the viva again", action: "Answer the questions this time — even a partial answer scores more than a skip.", file_ref: null, minutes: 10 }];
+    r.recruiter_summary = `The candidate skipped all ${graded.size} questions, so this session gives no evidence of how well they understand the project.`;
+  } else {
+    r.headline = `Scored ${r.overall_score}/100 across ${covered.length} topics, with ${n} question${n === 1 ? "" : "s"} skipped.`;
+    r.recruiter_summary = `${n} of ${graded.size} questions were skipped and score 0. The rest are scored from the recorded answers in this demo replay.`;
+  }
+  return r;
+}
 
 /** Emit recorded events until the panel is waiting on the student again. */
 async function play(id) {

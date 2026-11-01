@@ -70,7 +70,7 @@ def run_tests(test_path: str | None) -> RunTestsResult:   # None = whole suite
 | Student sends | What happens |
 |---|---|
 | "Can you repeat that?" / "What do you mean?" | Same examiner re-asks in plainer words; not graded (once per question) |
-| empty, "idk", "no idea" | Always `no_answer`; the follow-up is easier |
+| empty, "idk", "no idea" | Always `no_answer`; the panel moves on to the next examiner |
 | "yes" / one word | Usually `weak`; asked to explain |
 | "ignore previous instructions…" | A `system` guardrail event, verdict capped at `weak`, no test run |
 | a huge paste | Clipped to 1,500 chars before it reaches any prompt |
@@ -87,5 +87,6 @@ answer) · `system` (errors and sandbox results). See api-contract.md §5 for th
 
 ## Limits (in `agents/panel.py`)
 
-`MAX_QUESTIONS = 12` (about 5 minutes), `MAX_CHALLENGES = 2`, and at most 2 follow-ups per topic
-(`MAX_FOLLOW_UPS` in `agents/examiner.py`).
+`MAX_QUESTIONS = 6` (about 3 minutes) and `QUESTIONS_PER_EXAMINER = 2` — the Junior's warm-up is one of the Junior's
+two, and an Engineer sandbox check is one of the Engineer's. One question per topic: `MAX_CHALLENGES = 0` and
+`MAX_FOLLOW_UPS = 0` (in `agents/examiner.py`). A skipped question scores 0; skipping all of them scores 0 overall.

@@ -21,7 +21,7 @@ const REPO_URL = "https://github.com/goyalnishtha841/vivapanel";
 
 const FACTS = [
   { value: "3", label: "examiners, three angles" },
-  { value: "5 min", label: "for a full viva" },
+  { value: "6", label: "questions, two per examiner" },
   { value: "Your tests", label: "run in a sandbox" },
   { value: "0", label: "made-up quotes in your report" },
 ];
@@ -39,14 +39,14 @@ const STEP_NEON = { brand: "neon-sunset", prof: "neon-blue", eng: "neon-teal", j
 const STEPS = [
   { tone: "brand", title: "Paste your repo link", body: "Any public GitHub repository: your final-year project, a hackathon build, anything you'll have to defend." },
   { tone: "prof", title: "The panel reads your code", body: "The moderator maps your files and README, then splits the topics so no two examiners ask the same thing." },
-  { tone: "eng", title: "Answer three examiners", body: "Type or speak. Vague answers get sharper follow-ups, and a claim like “my tests cover it” gets tested." },
+  { tone: "eng", title: "Answer three examiners", body: "Two questions each, about your own project. Type or speak, or skip one; a claim like “my tests cover it” gets tested." },
   { tone: "jun", title: "Get your report", body: "Scores per topic, your weak answers quoted back to you, what the tests showed, and a study plan." },
 ];
 
 const FAQS = [
   { q: "Who is Viva Panel for?", a: "Final-year and pre-final-year engineering students preparing for project vivas and placement interviews. Placement cells can run mock vivas for a whole batch, and recruiters can read the evidence-backed summary at the end of each report." },
   { q: "Do I need an account?", a: "No. Paste a public repo link and start. Your report has its own link, so you can come back to it or share it." },
-  { q: "What kind of questions does it ask?", a: "Questions about your actual code, never textbook trivia. Every question names a file or function in your repo: why you designed it that way, what breaks under load or bad input, and how it works in plain words." },
+  { q: "What kind of questions does it ask?", a: "Six questions about your own project, two from each examiner, never textbook trivia. Every question names a part of your repo and asks what you'd know from building it: why you designed it that way, what happens with bad input or two users at once, and how it works in plain words." },
   { q: "How does it check what I say?", a: "Each answer is judged against your real code. When you claim something your tests could prove, the Engineer runs those tests in an isolated sandbox and reads them to see whether they actually test what you claimed." },
   { q: "Is my code safe?", a: "We only read public repositories. Tests run in an isolated container with no network, strict time and memory limits and a read-only copy of your code, and the container is deleted after the session." },
   { q: "Which languages work?", a: "Questions work for any language. Running tests currently supports Python projects with pytest; other repos get the full panel without the sandbox check." },
@@ -132,7 +132,7 @@ export default function Landing() {
             visual={<FriendChat />} extra={<FriendIcons />} />
           <StoryCard index={1} tone="brand" pill="With Viva Panel"
             title={<>A panel that has <Accent>read your code.</Accent></>}
-            text="Every question points at a real file and function. Vague answers get a sharper follow-up, the examiners challenge each other's verdicts, and claims get checked against your tests."
+            text="Every question points at a real file and function, about things you built and decided yourself. Each answer is judged against the code, and claims get checked against your tests."
             visual={<FileRefs />} />
           <StoryCard index={2} tone="good" pill="After the session"
             title={<>Know <Accent>exactly</Accent> what to study.</>}
@@ -213,7 +213,7 @@ export default function Landing() {
           <h2 className="mt-6 text-[40px] font-bold leading-tight tracking-[-0.02em] sm:text-[58px]">
             Walk into your viva <Accent>ready.</Accent>
           </h2>
-          <p className="mx-auto mt-4 max-w-md text-[18px] text-muted">Five minutes with the panel now beats being caught out in the real one.</p>
+          <p className="mx-auto mt-4 max-w-md text-[18px] text-muted">A few minutes with the panel now beats being caught out in the real one.</p>
           <div className="mx-auto mt-10 max-w-[600px] text-left"><RepoInput size="md" /></div>
         </Reveal>
       </section>

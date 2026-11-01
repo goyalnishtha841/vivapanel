@@ -98,7 +98,7 @@ function Body({ r, focus }) {
         words, their code or a test run, so you can check it.
       </p>
 
-      <section className="neon neon-sunset grid items-center gap-8 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[auto_1fr]">
+      <section className="neon neon-sunset grid grid-cols-1 items-center gap-8 rounded-[28px] p-6 sm:p-10 lg:grid-cols-[auto_1fr]">
         <ScoreRing value={r.overall_score} color={ring} />
         <div>
           <div className="text-[15px] text-muted">Understanding of their own project</div>
@@ -134,7 +134,7 @@ function Body({ r, focus }) {
         </Card>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <Card title="Flags" note="Where the candidate couldn't explain their own code.">
           {r.weak_spots.length === 0 ? <p className="text-[15px] text-muted">No flags.</p> : (
             <div className="space-y-5">

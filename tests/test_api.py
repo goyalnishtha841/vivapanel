@@ -121,11 +121,11 @@ def test_retake_needs_a_finished_viva(client):
 
 def test_session_info_reports_the_question_limit(client):
     first = finish_viva(client)
-    assert client.get(f"/session/{first}").json()["max_questions"] == 12
+    assert client.get(f"/session/{first}").json()["max_questions"] == 6
     sid = client.post("/session", json={"retake_of": first}).json()["session_id"]
     wait_for(client, sid, {"awaiting"})
     info = client.get(f"/session/{sid}").json()
-    assert info["retake_of"] == first and info["max_questions"] < 12
+    assert info["retake_of"] == first and info["max_questions"] <= 6
 
 
 def test_contributors_endpoint(client, monkeypatch):

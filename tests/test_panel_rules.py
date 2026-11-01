@@ -168,3 +168,47 @@ def test_report_from_a_misbehaving_session_is_consistent(summary, model):
     assert 0 <= report.overall_score <= 100
     assert report.overall_score == (round(sum(reached) / len(reached)) if reached else 0)
     assert report.questions_asked == len(panel.state.transcript)
+
+
+@pytest.mark.parametrize("agentic", [False, True], ids=["plain", "agentic-engineer"])
+def test_two_questions_per_examiner_even_when_the_model_wants_more(summary, model, agentic):
+    panel, _ = run_viva(summary, agentic)
+    asked = Counter(t.examiner for t in panel.state.transcript if t.kind != "rephrase")
+    assert all(n <= 2 for n in asked.values()), asked
+    assert sum(asked.values()) <= 6
+    assert not any(t.kind in ("follow_up", "challenge") for t in panel.state.transcript)  # no drilling deeper
+
+
+def test_an_examiner_with_two_questions_gets_no_third(summary):
+    """Even with topics left (say the Engineer also ran a sandbox check), an examiner who has asked twice is skipped."""
+    from agents.schemas import Turn
+    panel = Panel(summary)
+    list(panel.start())
+    st = panel.state
+    st.queues["engineer"] = st.queues["engineer"] or [st.plan.topics[0]]
+    st.transcript += [Turn(examiner="engineer", kind=k, topic="t", file_ref="app/db.py", question="q", answer="a")
+                      for k in ("open", "verify")]
+    assert panel._next_speaker("professor") != "engineer"
+    assert panel._next_speaker("junior") != "engineer"
+
+
+def test_offline_viva_is_two_per_examiner(summary):
+    panel = Panel(summary)
+    list(panel.start())
+    while panel.awaiting_answer:
+        list(panel.answer("It reads then updates in two queries."))
+    asked = Counter(t.examiner for t in panel.state.transcript)
+    assert asked == {"professor": 2, "engineer": 2, "junior": 2}  # the Junior's warm-up is one of their two
+
+
+def test_skipping_every_question_scores_zero_without_asking_the_model(summary, model):
+    panel = Panel(summary)
+    list(panel.start())
+    while panel.awaiting_answer:
+        list(panel.answer("", skip=True))
+    report = build_report(summary, panel.state)
+    assert report.overall_score == 0 and report.readiness == "not_ready"
+    assert all(t.confidence in (0, None) for t in report.topics)
+    assert report.weak_spots == [] and report.test_evidence == []
+    assert "No questions were answered" in report.headline
+    assert model.calls["ReportNarrative"] == 0  # no invented narrative for a session with no evidence
