@@ -19,17 +19,11 @@ report with a study plan.
 [![License: MIT](https://img.shields.io/badge/license-MIT-E07A3F.svg)](LICENSE)
 
 ### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) 
- [▶ Watch the 2-minute demo](https://drive.google.com/file/d/15hFsBL40CQet-wR655UVys5GMszkbUiv/view?usp=sharing)
-
-<sub>Free hosting: if the site has been idle, the first load takes about a minute while it wakes up.</sub>
+### [▶ Watch the 2-minute demo](https://drive.google.com/file/d/15hFsBL40CQet-wR655UVys5GMszkbUiv/view?usp=sharing)
 
 <br />
 
 <a href="https://drive.google.com/file/d/15hFsBL40CQet-wR655UVys5GMszkbUiv/view?usp=sharing"><img src="demo-video/out/thumbnail.jpg" width="900" alt="Demo video: a live viva on a real repo. Click to play (2:10)" /></a>
-
-<sub><b>Demo video (2:10).</b> A real capture of the deployed app, not a mockup: a full viva on a second real repo
-(<a href="https://github.com/goyalnishtha841/tradepilot">tradepilot</a>), including the Engineer catching a false claim
-with a live code search, and the report it produced. Click the image to play.</sub>
 
 <sub>Built for the <b>Ziro Agentic AI Hackathon 2026</b> by team <b>Triple Threat AI</b>.</sub>
 
