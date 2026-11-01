@@ -18,7 +18,8 @@ report with a study plan.
 ![LLM](https://img.shields.io/badge/LLM-Groq%20%C2%B7%20Gemini%20backup%20%C2%B7%20Claude-8A63D2)
 [![License: MIT](https://img.shields.io/badge/license-MIT-E07A3F.svg)](LICENSE)
 
-### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) · [▶ Watch the 2-minute demo](https://drive.google.com/file/d/15hFsBL40CQet-wR655UVys5GMszkbUiv/view?usp=sharing)
+### [▶ Try it live: viva-panel.onrender.com](https://viva-panel.onrender.com) 
+ [▶ Watch the 2-minute demo](https://drive.google.com/file/d/15hFsBL40CQet-wR655UVys5GMszkbUiv/view?usp=sharing)
 
 <sub>Free hosting: if the site has been idle, the first load takes about a minute while it wakes up.</sub>
 
