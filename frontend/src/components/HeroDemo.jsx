@@ -6,9 +6,9 @@ import CodeText from "./CodeText.jsx";
 import { Wrench } from "./Icons.jsx";
 import { EXAMINERS, ORDER, TONE, VERDICT, verdictIn } from "../lib/examiners.js";
 
-// A real recorded session (Groq, 20 Oct 2026), trimmed to its two best moments:
-// a vague answer caught and recovered, then a claim checked in the sandbox.
-const SCRIPT = [2, 3, 4, 5, 20, 21, 22, 23, 24].map((i) => recorded[i]);
+// The demo session (questions and answers from a real Groq run, 20 Oct 2026), trimmed to its two best moments:
+// a clear answer on a design choice, then a claim checked in the sandbox.
+const SCRIPT = [4, 5, 13, 14, 15, 16, 17].map((i) => recorded[i]);
 const STEP_MS = 2600;
 
 export default function HeroDemo() {

@@ -42,7 +42,7 @@ with a live code search, and the report it produced. Click the image to play.</s
 > - **What's hard about it:** agents that use tools in a loop (read files, search code, run tests in a sandbox),
 >   kept reliable in a *live conversation* by enforcing every rule in code, not in prompts.
 > - **Engineering:** FastAPI + React, streaming over Server-Sent Events, Postgres, isolated test sandboxes
->   (Docker / Daytona), automatic fallback across AI providers, 131 automated tests and CI on every push.
+>   (Docker / Daytona), automatic fallback across AI providers, 136 automated tests and CI on every push.
 > - **Proof:** deployed at [viva-panel.onrender.com](https://viva-panel.onrender.com), verified on real student projects, with a [2-minute demo](https://drive.google.com/file/d/1Lv7N7xPtM28SpyjZEgwQ__8K_oQGboSQ/view?usp=sharing); the numbers in this README link to evidence.
 
 ## Contents
@@ -59,7 +59,7 @@ with a live code search, and the report it produced. Click the image to play.</s
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/session-followup.jpg" alt="The Professor rates an answer weak and asks a sharper follow-up, with the real file open beside it" /><br /><sub><b>Judged against your code.</b> A vague answer is rated <i>weak</i>, the Professor pushes with a sharper follow-up, and the exact function opens beside the question.</sub></td>
+    <td width="50%"><img src="docs/screenshots/session-followup.jpg" alt="The Professor rates an answer weak and asks a sharper follow-up, with the real file open beside it" /><br /><sub><b>Judged against your code.</b> A vague answer is rated <i>weak</i>, and the exact function the question is about opens beside it.</sub></td>
     <td width="50%"><img src="docs/screenshots/session-tests.jpg" alt="The Engineer runs the student's tests in a sandbox and rules the claim inconclusive" /><br /><sub><b>Claims get tested.</b> "My tests cover double-borrowing" → the Engineer runs them in a sandbox: 2 passed, but they never send concurrent requests, so the claim is <i>inconclusive</i>.</sub></td>
   </tr>
   <tr>
@@ -105,15 +105,16 @@ shows in answers. We automate the questioning, not the suspicion.
 
 1. **Paste a GitHub link.** The server copies the repo, and a **reader agent** explores it (opening files, searching
    for where the README's claims live) to pick the files that matter. Each step is narrated live.
-2. **Meet the panel.** A **moderator** plans 6 topics, 2 per examiner, each tied to a real file and to a feature the
-   README names. Meanwhile the sandbox runs your project's own tests once, so later questions can cite what's verified.
-   The viva runs like a real interview: a **warm-up** ("what features have you built?"), then easy to hard:
+2. **Meet the panel.** A **moderator** plans the topics, each tied to a real file and to a feature the README names.
+   The viva is **6 questions: 2 from each examiner**, each on a different part of the project and answerable by
+   whoever built it (what it does, why you built it that way, what happens when something goes wrong). Meanwhile the sandbox runs your project's own tests once, so later questions can cite what's verified.
+   It runs like a real interview: the Junior's **warm-up** ("what features have you built?"), then easy to hard:
    - 🙋 **The Curious Junior** (fundamentals): *can you explain it simply?* This is where copied code shows fastest.
    - 🎓 **The Professor** (design): *why this approach? What are the trade-offs?*
    - 🔧 **The Industry Engineer** (advanced): scale, edge cases and security. Reads your code and runs your tests to check claims.
 3. **Answer by typing or speaking.** Each answer is judged against the real code (*strong*, *partial*, *weak* or *no answer*).
-   Weak answers get sharper follow-ups grounded in what you said, and examiners can challenge each other's verdicts.
-   **Repeat?** re-asks a question as often as you like, ungraded; **Skip** moves on and is counted separately from wrong answers.
+   Each examiner asks one question per topic and moves on, so nobody drills into details you couldn't know.
+   **Skip** moves on and scores that question 0; it's counted separately from wrong answers. Skip everything and the score is 0.
 4. **Get your report.** A score per topic, your weak answers quoted back with the file they were about, what your tests
    actually showed compared with what you claimed, skipped questions by difficulty, a study plan with time estimates and
    interview tips for next time. Save it as PDF or share the link.
@@ -138,15 +139,15 @@ shows in answers. We automate the questioning, not the suspicion.
 | 🧑‍⚖️ | **Three distinct examiners** | Different lenses and tones, one shared transcript, so they notice contradictions ("earlier you told the Professor…") |
 | 🔍 | **Tool-using Engineer** | Calls `read_file` and `search_code` in a function-calling loop. Say "I close connections in a teardown hook" and it searches and finds out |
 | 🧪 | **Claims verified by running tests** | Picks the right test file, runs it in a throwaway sandbox, reads it, and rules the claim *supported*, *contradicted* or *inconclusive*. Passing tests are not taken as proof |
-| ⚔️ | **Cross-examination** | After a verdict, a colleague may push back ("I'd push back on that, Professor") or build on the point |
+| ⚖️ | **Two questions each** | Exactly 2 questions from each examiner (the Junior's warm-up is one), one per topic, enforced in code |
 | 🛡️ | **Guardrails in code** | Empty answers, "I don't know", "repeat that", one-word replies, pasted code and prompt injection are classified and capped by code before the AI sees them |
-| ⏭️ | **Repeat and Skip** | Repeat re-asks, unlimited and ungraded; Skip moves on and is reported separately from wrong answers, by difficulty |
+| ⏭️ | **Skip** | Moves on; a skipped question scores 0 and is reported separately from wrong answers, by difficulty |
 | 📄 | **Evidence-backed report** | Code computes every score and copies every quote; compares the baseline test run with the student's claims; adds a study plan and interview tips. The AI's references are validated |
 | 🔁 | **Retake (re-viva)** | Up to 3 weakest topics, same examiner and file, new questions (code rejects last time's), progress per topic |
 | 👥 | **Team-project mode** | A file is yours if you made at least half its commits; at least half the topics land on your files; the report marks "your code" vs "teammate's code" |
 | 🤝 | **Hiring mode** | Role-weighted questions, a consent screen, per-skill scores computed by code, flags with quotes, answer timing and pastes shown as context, full transcript. Single-use links; the recruiter key is stored only as a hash |
 | 🧾 | **Code beside every question** | The real file opens with the function highlighted, and follows the Engineer live as it reads and searches |
-| 🎙️ | **Voice and hands-free mode** | Each examiner has their own voice; answers can be spoken. Typing stays the main path, so accent never matters |
+| 🎙️ | **Voice** | Each examiner has their own voice; answers can be spoken. Typing stays the main path, so accent never matters |
 | 🛟 | **Never stalls on rate limits** | Every AI call falls back Groq 120b → Groq 20b → Gemini flash → flash-lite, with a 45 s timeout per call |
 | ⚡ | **Live narration** | Every agent step streams to the browser over Server-Sent Events and resumes after a dropped connection |
 | 💾 | **Built to run in public** | Postgres so reports survive restarts, per-visitor daily limits, automatic clean-up of abandoned repo copies, a `/health` page |
@@ -169,8 +170,8 @@ design (Professor), then advanced (Engineer), after a warm-up question that lets
 
 **Examiners** (`agents/examiner.py`, `agents/prompts/`). Each has its own role prompt plus shared rules: judge against
 the code, one question at a time, at most 35 words, never grade grammar, accent or fluency. Each decision comes back as
-a Pydantic schema (verdict, judgement, action, next question, any testable claim); code enforces the 2-follow-up limit
-and rewrites questions that are too long, multi-part or repeated.
+a Pydantic schema (verdict, judgement, action, next question, any testable claim); code enforces two questions per
+examiner and one per topic, and rewrites questions that are too long, multi-part or repeated.
 
 **Tool-using Engineer** (`agents/llm.py:agent_loop`, `agents/tools.py`). A hand-written function-calling loop: the
 model picks a tool, code runs it and returns the result, the model decides again, then calls `submit`. Up to 3 tool
@@ -186,13 +187,13 @@ testable claim can trigger one targeted run per viva. Code corrects the verdict 
 "contradict" a claim).
 
 **Guardrails** (`agents/guardrails.py`, `agents/panel.py:_enforce`). Every answer is classified before the model sees
-it. "Repeat that" gets the question reworded, ungraded, as many times as needed; Skip records the question as skipped,
-not as a wrong answer. After "I don't know", the next question gets easier. Empty and
+it. Typing "can you repeat that?" gets the question reworded, ungraded; Skip records the question as skipped (scored
+0), not as a wrong answer, and a session where every question is skipped scores 0 with no AI-written narrative. After "I don't know", the next question gets easier. Empty and
 "I don't know" are always *no answer*; an injection attempt never scores above *weak*, never triggers a test run, and
 shows a visible note. Answers are wrapped in « » as data and clipped to 1,500 characters.
 
 **Scoring** (`agents/scoring.py`). Per topic: strong 1.0, partial 0.55, weak 0.2, no answer 0, with later answers
-weighted more (recovering after a follow-up counts); −15 if a test contradicted the student's claim. Overall = mean of
+weighted more (a topic with a sandbox check has two answers, and the later one counts more); −15 if a test contradicted the student's claim. Overall = mean of
 topics reached. Readiness: ≥ 80 ready, ≥ 60 almost ready, ≥ 40 needs work, below 40 not ready. The model may only cite
 real transcript turns and files; code validates them and copies the quotes.
 
@@ -222,13 +223,13 @@ summaries of older turns and per-call output caps, measured with `python -m agen
 - **It has read your code.** Every question names a real file or function, and code checks it, so the AI can't invent files.
 - **It verifies instead of trusting.** Claims are checked against the code and the project's own tests, and "tests
   pass" is not accepted as proof unless the tests exercise the claim.
-- **It's a panel, not a chatbot.** Three personas with different lenses that challenge each other.
+- **It's a panel, not a chatbot.** Three personas with different lenses, two questions each, on different parts of your project.
 - **It coaches, not just grades.** Retake only your weak topics and see per-topic progress.
 - **It knows who wrote what.** Team mode reads git history to examine each member on their own files.
 - **It's fair by design.** Never grades grammar, accent or fluency; typing first; questions ease off after "I don't know".
 
 > **Why not n8n, LangChain or CrewAI?** n8n wires apps together in a fixed flow; our agents decide the flow mid-conversation
-> (follow up, move on, open a file, challenge a colleague). Our core idea, *the model judges, code guarantees*, needs
+> (move on, open a file, search the code, run the tests). Our core idea, *the model judges, code guarantees*, needs
 > every rule enforced and tested in our own code, and a framework would hide exactly those parts and add latency. The
 > agent loop is about 100 readable lines.
 
@@ -265,9 +266,8 @@ flowchart LR
 |---|---|
 | Which files matter | Every path and function exists; snippets are cut from the real files |
 | Which topics to probe | 2 per examiner, no duplicates, each on a real file; in team mode, at least half on the student's own files |
-| Each question and follow-up | 12 questions per viva, 2 follow-ups per topic, one question at a time, rewritten if too long or repeated |
+| Each question | 6 questions per viva, 2 per examiner, one per topic, one question at a time, rewritten if too long or repeated |
 | The verdict on each answer | Empty and "I don't know" are always *no answer*; an injection never scores above *weak* |
-| Whether to challenge a colleague | At most 2 per viva, only after strong or partial verdicts, on the same file |
 | Which tools to call and which tests to run | Tool budgets; only real test files; an all-green run can't "contradict" a claim |
 | The narrative and study plan | Scores, readiness, quotes and skill scores are computed; cited turns and files are validated |
 
@@ -275,8 +275,8 @@ flowchart LR
 fundamentals to advanced → the report.
 
 **One answer, step by step:** classify the answer in code → the examiner judges it against the code (the Engineer may
-read or search first) → code enforces edge-case verdicts → a testable claim goes to the sandbox → follow up or hand
-over → a colleague may challenge → the moderator passes the floor → after 12 questions, the scorer writes the report.
+read or search first) → code enforces edge-case verdicts → a testable claim goes to the sandbox (as one of the
+Engineer's two questions) → the moderator passes the floor → after 6 questions, the scorer writes the report.
 
 Full design, diagrams and trade-offs: **[docs/architecture.md](docs/architecture.md)**.
 
@@ -319,7 +319,7 @@ Generic answers should score low, which shows the panel isn't fooled. Answered p
 | Test isolation | Docker locally, Daytona hosted (E2B supported) | Student code never runs on our server |
 | Frontend | React 18, Vite, Tailwind CSS, Framer Motion | A polished, animated, responsive UI built fast |
 | Deploy | One Docker image on Render | FastAPI serves the built app too: one URL, no CORS |
-| Quality | pytest, ruff, GitHub Actions | 131 tests, offline evals, a frontend build and a Docker smoke test on every push |
+| Quality | pytest, ruff, GitHub Actions | 136 tests, offline evals, a frontend build and a Docker smoke test on every push |
 
 ---
 
@@ -364,8 +364,9 @@ In a second terminal:
 cd frontend && npm install && VITE_API_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-Open http://localhost:5190. Without `VITE_API_URL`, the UI runs in **demo mode** and replays a real recorded viva,
-with no backend or keys needed.
+Open http://localhost:5190. Without `VITE_API_URL`, the UI runs in **demo mode**: it replays a 6-question viva on the sample project, built
+from a real recorded session, with no backend or keys needed. It can't grade what you type, but a question you skip
+scores 0, exactly like the real panel.
 
 ### Agents only (terminal)
 
@@ -428,7 +429,7 @@ Three levels; only the last one spends API credits:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                                   # 131 tests, offline, a few seconds
+pytest -q                                   # 136 tests, offline, a few seconds
 ruff check agents backend tests
 VIVA_OFFLINE=1 python -m agents.eval edge   # whole scripted sessions (also: mixed, large)
 python scripts/live_check.py                # full vivas on real repos + a hiring run against the live site
@@ -437,14 +438,14 @@ python scripts/live_check.py                # full vivas on real repos + a hirin
 The centrepiece is **`test_panel_rules.py`**: it swaps the AI for one that **breaks every rule on purpose** (invented
 files, run-on questions, endless follow-ups and challenges, "strong" for everything, misread test results) and checks
 the panel still keeps every limit. We confirmed the suite catches regressions: disabling the edge-case enforcement or
-the follow-up cap makes it fail.
+the two-questions-per-examiner cap makes it fail.
 
 <details>
 <summary><b>What each test suite proves</b></summary>
 
 | Suite | What it proves |
 |---|---|
-| `test_panel_rules.py` | Every limit holds against a deliberately misbehaving model: 12 questions, 2 follow-ups, 2 challenges on the same file, 1 test run, real file references, enforced edge-case verdicts |
+| `test_panel_rules.py` | Every limit holds against a deliberately misbehaving model: 6 questions, 2 per examiner, no follow-ups or challenges, 1 test run, real file references, enforced edge-case verdicts; skipping everything scores 0 |
 | `test_scoring.py` | Verdict weights, later answers weighing more, the contradiction penalty, readiness thresholds; invented turns and files in the narrative are dropped |
 | `test_guardrails.py` | Answer classification (empty, "idk", clarify, injection, one word, long paste), reference checks, question-quality checks |
 | `test_llm_routing.py` | The fallback chain: per-minute limits move on, daily caps are remembered, other errors aren't retried, strict schemas are closed |
@@ -470,9 +471,9 @@ every push to `main` and every pull request.
 ```
 vivapanel/
 ├── agents/                  # the AI panel
-│   ├── panel.py             #   orchestration: turns, challenges, edge-case enforcement, retakes
+│   ├── panel.py             #   orchestration: turns, 2 questions per examiner, edge-case enforcement, retakes
 │   ├── moderator.py         #   topic plans, retake plans, team-mode balance
-│   ├── examiner.py          #   Professor / Engineer / Junior: questions, verdicts, follow-ups
+│   ├── examiner.py          #   Professor / Engineer / Junior: questions and verdicts
 │   ├── scoring.py           #   scores in code + narrative, skill scores for hiring
 │   ├── llm.py               #   Groq / Gemini / Claude, fallback chain, tool loop
 │   ├── tools.py             #   read_file, search_code (confined to the repo)
@@ -482,7 +483,7 @@ vivapanel/
 │   └── eval.py, quality.py, profile_tokens.py
 ├── backend/app/             # FastAPI: API, repo ingestion + reader agent, sandbox, authorship, storage
 ├── frontend/src/            # React: landing, live panel, code viewer, report, recruiter pages
-├── tests/                   # 131 tests (pytest)
+├── tests/                   # 136 tests (pytest)
 ├── scripts/live_check.py    # end-to-end checks against a deployed site
 ├── docs/                    # architecture, API contract, jury Q&A, deploy guide, evidence
 └── Dockerfile, docker-compose.yml, render.yaml
@@ -501,7 +502,7 @@ We'd rather state these than have you find them:
 - **Free-tier AI limits:** about 5 full vivas a day on Groq's free tier, plus the Gemini backup. A paid tier is one setting.
 - **Test runs are Python + pytest for now.** Questions and code tools work on any language.
 - **Scores aren't yet calibrated against human examiners.** The weights are a reasoned first version.
-- **A memorised answer can pass some questions.** Line-specific follow-ups, the Junior and test runs make it hard, not impossible.
+- **A memorised answer can pass some questions.** Questions on six different parts of the project, the Junior and test runs make it hard, not impossible.
 - **Free hosting sleeps** after 15 idle minutes; the first visit then takes about a minute.
 - **Hosted sandbox setup:** on Daytona the account needs a default region set, or test runs fail at creation (`/health` shows it under `sandbox.last_error`).
 
@@ -517,7 +518,7 @@ Built for the **Ziro Agentic AI Hackathon 2026** by **Triple Threat AI**.
 | Member | Area |
 |---|---|
 | **Nishtha Goyal** (team lead) | AI and agents (reader, moderator, examiners, scorer, guardrails, LLM routing, evals), plus the backend, UI, re-viva, team and hiring modes |
-| **Asmita Roy** ([@techAsmita](https://github.com/techAsmita)) | UI redesign and polish, voice and hands-free mode, mobile layout, interview pacing (warm-up, fundamentals first, Skip), reports, Postgres and Daytona sandbox, testing on real repos, demo video and slides |
+| **Asmita Roy** ([@techAsmita](https://github.com/techAsmita)) | UI redesign and polish, voice answers, mobile layout, interview pacing (warm-up, fundamentals first, Skip), reports, Postgres and Daytona sandbox, testing on real repos, demo video and slides |
 | **Akshita** | Hosted test sandbox, deployment |
 
 **License:** [MIT](LICENSE) © 2026 Team Triple Threat AI (Nishtha Goyal, Asmita Roy, Akshita).

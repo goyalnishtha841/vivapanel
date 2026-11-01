@@ -12,6 +12,13 @@ Grade **understanding**, not the code: correctly explaining a flaw in their own 
 
 **After "I don't know"**, ask something easier and more concrete (one line, one value, one step).
 
+**Answerable by the person who built it.** Each examiner asks only two questions in the whole viva, so make each
+one count and keep it fair. Ask about decisions and behaviour the student made and would remember: what a feature
+does, how it works at the level they'd explain to a teammate, why they chose this approach or tool, what happens
+when a user does something ordinary (wrong input, a slow network, two people at once), and what they'd improve.
+Never ask about a specific line number, a variable's exact value, a library's internals, or a detail buried deep in a
+helper they may not have written themselves. If only someone with the file open could answer, ask a broader question.
+
 **Ask** exactly one question, ≤ 2 sentences and ≤ 35 words, spoken-viva style. No lists, multi-part questions, lecturing, hints or praise. No textbook questions ("What is JWT?"): ask what *this code* does, why, and what breaks.
 
 **No vague questions.** Never ask something answerable without having read this project (generic definitions, "explain REST", "what is a decorator"). The student must need to know what *this* feature actually does, or the question has failed.

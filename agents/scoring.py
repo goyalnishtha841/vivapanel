@@ -34,7 +34,11 @@ def build_report(summary: ProjectSummary, state: PanelState) -> Report:
     topics = _topic_scores(state)
     covered = [t.confidence for t in topics if t.confidence is not None]
     overall = round(sum(covered) / len(covered)) if covered else 0
-    narrative = _offline_narrative(summary, state, topics) if llm.is_offline() else _llm_narrative(summary, state, topics)
+    # Nothing answered (every question skipped or left empty): there is no evidence to write about, so don't ask the
+    # model to invent a narrative — the code-written one says so plainly, and every score stays at 0.
+    nothing_answered = _answered_count(transcript) == 0
+    narrative = (_offline_narrative(summary, state, topics) if llm.is_offline() or nothing_answered
+                 else _llm_narrative(summary, state, topics))
 
     if summary.student:
         focus = set(summary.student.focus())
@@ -144,6 +148,12 @@ def _integrity(transcript: list[Turn]) -> Integrity | None:
         median_seconds=round(secs[mid] if len(secs) % 2 else (secs[mid - 1] + secs[mid]) / 2, 1),
         fast_long_answers=sum(1 for t in timed if t.seconds < 10 and len(t.answer.split()) > 40),
     )
+
+
+def _answered_count(transcript: list[Turn]) -> int:
+    """Graded questions the student actually answered (not skipped, not empty); the ungraded warm-up doesn't count."""
+    return sum(1 for t in transcript
+               if t.topic != WARMUP_TOPIC and t.kind != "rephrase" and not t.skipped and (t.answer or "").strip())
 
 
 def _readiness(score: int, topics_covered: int) -> str:
@@ -273,6 +283,25 @@ def _offline_narrative(summary: ProjectSummary, state: PanelState, topics: list[
     turn_of = {}
     for i, t in enumerate(state.transcript, 1):
         turn_of.setdefault(t.topic, []).append(i)
+    answered = _answered_count(state.transcript)
+    graded = sum(1 for t in state.transcript if t.topic != WARMUP_TOPIC and t.kind != "rephrase")
+    if answered == 0:
+        return ReportNarrative(
+            headline="No questions were answered, so there is nothing to score yet.",
+            topic_notes=[_NarrativeTopicNote(topic=t.topic, note="Skipped, so it scores 0." if t.confidence is not None
+                                             else "Not reached in this session.") for t in topics],
+            weak_spots=[],
+            study_plan=[_NarrativeStudyStep(title=f"Prepare {t.topic}", action=f"Re-read {t.file_ref} and practise "
+                        "explaining it out loud, then take the viva again and answer this question.",
+                        file_ref=t.file_ref or "", minutes=20) for t in topics if t.confidence is not None][:4]
+                       or [_NarrativeStudyStep(title="Take the viva again", action="Answer the questions this time.",
+                                               file_ref="", minutes=10)],
+            skill_evidence=[_NarrativeSkill(skill=s, topics=[]) for s in (state.role.focus if state.role else [])],
+            recruiter_summary=f"The candidate skipped all {graded} question{'' if graded == 1 else 's'}, so this session gives "
+                              "no evidence of how well they understand the project.",
+            interview_tips=["Even a partial answer beats skipping: say what you do know about the feature, then what "
+                            "you're unsure of. A skipped question can only score 0."],
+        )
     return ReportNarrative(
         headline=f"Scored {round(sum(t.confidence for t in reached) / max(len(reached), 1))}/100 across "
                  f"{len(reached)} topics; weakest on {weak[0].topic if weak else 'nothing major'}.",
@@ -285,7 +314,7 @@ def _offline_narrative(summary: ProjectSummary, state: PanelState, topics: list[
                                                                          file_ref="", minutes=20)],
         skill_evidence=[_NarrativeSkill(skill=s, topics=[t.topic for t in topics if _offline_skill_match(s, t)])
                         for s in (state.role.focus if state.role else [])],
-        recruiter_summary=f"Answered {sum(1 for t in state.transcript if t.answer)} questions; "
+        recruiter_summary=f"Answered {answered} of {graded} questions; "
                           f"{sum(1 for t in reached if t.confidence >= 60)} of {len(reached)} topics at 60+ confidence. "
                           f"{len(state.verifications)} claim(s) checked against the test suite.",
         interview_tips=_offline_tips(state, reached, weak),
