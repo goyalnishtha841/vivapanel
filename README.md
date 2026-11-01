@@ -63,14 +63,6 @@ report with a study plan.
   </tr>
 </table>
 
-<p align="center">
-  <img src="docs/screenshots/mobile.jpg" width="230" alt="Viva Panel on a phone" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/hero-light.jpg" width="560" alt="Viva Panel in light theme" />
-  <br />
-  <sub>Works on phones, in dark and light themes.</sub>
-</p>
-
 ---
 
 ## The problem
