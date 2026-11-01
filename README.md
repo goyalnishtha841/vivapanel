@@ -24,6 +24,12 @@ report with a study plan.
 
 <br />
 
+<a href="https://viva-panel.onrender.com"><img src="docs/screenshots/hero.jpg" width="900" alt="Viva Panel homepage: Can you defend your own code? A Professor, an Industry Engineer and a Curious Junior read your GitHub project, then question you on it." /></a>
+
+<sub>The live homepage at <a href="https://viva-panel.onrender.com">viva-panel.onrender.com</a>.</sub>
+
+<br /><br />
+
 <a href="https://drive.google.com/file/d/1Lv7N7xPtM28SpyjZEgwQ__8K_oQGboSQ/view?usp=sharing"><img src="demo-video/out/thumbnail.jpg" width="900" alt="Demo video: a live viva on a real repo. Click to play (2:10)" /></a>
 
 <sub><b>Demo video (2:10).</b> A real capture of the deployed app, not a mockup: a full viva on a second real repo
